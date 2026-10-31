@@ -1,8 +1,12 @@
 /* Public menu: loads the content files and the chosen theme, then renders the page.
-   Every theme uses this same markup; themes only change styling and a few layout flags. */
+   The layout decides how the menu works (scroll, tabs, tiles, accordion); the theme (skin) only
+   changes how it looks, so any skin works with any layout. */
 (async function () {
   'use strict';
-  const { LANGS, TAGS, SOCIAL, translator, localized, linkUrl, socialProfile, icon, scheduleLines, savedLang, saveLang, esc, formatPrice, getJSON } = window.DM;
+  const {
+    LANGS, TAGS, SOCIAL, translator, localized, plural, linkUrl, socialProfile, icon, scheduleLines,
+    savedLang, saveLang, esc, formatPrice, getJSON,
+  } = window.DM;
   const app = document.getElementById('app');
   const root = document.documentElement;
   const LANG_KEY = 'dm-lang';
@@ -24,6 +28,8 @@
       followUs: 'Pratite nas',
       links: 'Linkovi',
       switchLang: 'Prebaci na engleski',
+      back: 'Nazad',
+      recommended: 'Preporučujemo',
     },
     en: {
       title: 'Menu',
@@ -41,6 +47,8 @@
       followUs: 'Follow us',
       links: 'Links',
       switchLang: 'Switch to Serbian',
+      back: 'Back',
+      recommended: 'Recommended',
     },
   };
 
@@ -83,14 +91,26 @@
 
   root.dataset.theme = themeId;
   root.dataset.layout = theme.layout || 'list';
-  root.dataset.nav = theme.nav || 'scroll';
+  // ?layout= in the address wins (the design gallery uses it), then the café's choice, then the
+  // design's own default.
+  const LAYOUTS = ['scroll', 'tabs', 'tiles', 'accordion'];
+  const layout = [new URLSearchParams(location.search).get('layout'), settings.layout, theme.nav]
+    .find(l => LAYOUTS.includes(l)) || 'scroll';
+  root.dataset.nav = layout;
   if (settings.accent) root.style.setProperty('--accent', settings.accent);
   if (theme.themeColor) document.querySelector('meta[name="theme-color"]').content = theme.themeColor;
 
   const categories = (menu.categories || []).filter(c => (c.items || []).length);
   const itemById = new Map();
   categories.forEach(c => c.items.forEach(i => itemById.set(i.id, i)));
-  const tabs = root.dataset.nav === 'tabs';
+  const tabs = layout === 'tabs';
+
+  // "Preporučujemo" strip: available items marked Popular or New, when the café turned it on.
+  const featured = settings.featured
+    ? categories.flatMap(c => c.items).filter(i => i.available !== false && (i.tags || []).some(tag => tag === 'popular' || tag === 'new')).slice(0, 8)
+    : [];
+  const catImage = c => c.image || (c.items.find(i => i.image) || {}).image || '';
+  const itemCount = n => `${n} ${plural(n, lang, { sr: ['stavka', 'stavke', 'stavki'], en: ['item', 'items'] })}`;
 
   /* ---------- markup ---------- */
 
@@ -186,18 +206,9 @@
 
   /* ---------- page ---------- */
 
-  let observer = null;
-  let chips = [], sections = [];
-
-  // Builds the whole page in the current language. In tabs mode, activeCat keeps the open tab.
-  function render(activeCat) {
-    root.lang = lang;
-    document.title = settings.name ? `${settings.name} · ${t('title')}` : t('title');
-    const active = activeCat || (categories[0] && categories[0].id);
+  function heroHtml() {
     const tagline = L(settings, 'tagline');
-    const navTag = tabs ? 'button' : 'a';
-
-    app.innerHTML = `
+    return `
       <header class="hero">
         ${langSwitchHtml()}
         <div class="wrap">
@@ -205,35 +216,143 @@
           <h1 class="hero-name">${esc(settings.name || t('title'))}</h1>
           ${tagline ? `<p class="hero-tagline">${esc(tagline)}</p>` : ''}
         </div>
-      </header>
-      ${categories.length ? `
-        <nav class="catnav" aria-label="${t('sections')}">
-          <div class="catnav-inner">
-            ${categories.map(c => `<${navTag} class="chip${c.id === active ? ' active' : ''}" data-cat="${esc(c.id)}"${navTag === 'a' ? ` href="#cat-${esc(c.id)}"` : ' type="button"'}>${esc(L(c, 'name'))}</${navTag}>`).join('')}
-          </div>
-        </nav>
-        <main class="menu">
-          ${categories.map(c => `
-            <section class="cat${c.id === active ? ' active' : ''}" id="cat-${esc(c.id)}" data-cat="${esc(c.id)}">
-              <div class="wrap">
-                <header class="cat-head">
-                  <h2 class="cat-name">${esc(L(c, 'name'))}</h2>
-                  ${L(c, 'description') ? `<p class="cat-desc">${esc(L(c, 'description'))}</p>` : ''}
-                </header>
+      </header>`;
+  }
+
+  function featuredHtml() {
+    if (!featured.length) return '';
+    return `
+      <section class="featured" aria-label="${t('recommended')}">
+        <div class="wrap"><h2 class="featured-title">${t('recommended')}</h2></div>
+        <div class="featured-row">
+          ${featured.map(i => `
+            <button type="button" class="feat" data-id="${esc(i.id)}">
+              ${i.image ? `<img class="feat-img" src="${esc(i.image)}" alt="" loading="lazy">` : '<span class="feat-img"></span>'}
+              <span class="feat-name">${esc(L(i, 'name'))}</span>
+              <span class="feat-price">${esc(formatPrice(i.price, settings))}</span>
+            </button>`).join('')}
+        </div>
+      </section>`;
+  }
+
+  function sectionHtml(c, active) {
+    return `
+      <section class="cat${active ? ' active' : ''}" id="cat-${esc(c.id)}" data-cat="${esc(c.id)}">
+        <div class="wrap">
+          <header class="cat-head">
+            <h2 class="cat-name">${esc(L(c, 'name'))}</h2>
+            ${L(c, 'description') ? `<p class="cat-desc">${esc(L(c, 'description'))}</p>` : ''}
+          </header>
+          <div class="items">${c.items.map(itemHtml).join('')}</div>
+        </div>
+      </section>`;
+  }
+
+  // Scroll and tabs: section buttons on top, sections below (tabs shows one at a time).
+  function chipsLayoutHtml(active) {
+    const navTag = tabs ? 'button' : 'a';
+    return `
+      <nav class="catnav" aria-label="${t('sections')}">
+        <div class="catnav-inner">
+          ${categories.map(c => `<${navTag} class="chip${c.id === active ? ' active' : ''}" data-cat="${esc(c.id)}"${navTag === 'a' ? ` href="#cat-${esc(c.id)}"` : ' type="button"'}>${esc(L(c, 'name'))}</${navTag}>`).join('')}
+        </div>
+      </nav>
+      <main class="menu">${categories.map(c => sectionHtml(c, c.id === active)).join('')}</main>`;
+  }
+
+  // Accordion: every section folded; opening one closes the others.
+  function accordionHtml(open) {
+    return `
+      <main class="menu acc">
+        ${categories.map(c => `
+          <section class="cat${c.id === open ? ' open' : ''}" id="cat-${esc(c.id)}" data-cat="${esc(c.id)}">
+            <div class="wrap">
+              <h2 class="acc-h">
+                <button type="button" class="acc-head" aria-expanded="${c.id === open}">
+                  <span class="cat-name">${esc(L(c, 'name'))}</span>
+                  <span class="acc-count">${itemCount(c.items.length)}</span>
+                  <span class="acc-chev" aria-hidden="true"></span>
+                </button>
+              </h2>
+              <div class="acc-body"${c.id === open ? '' : ' hidden'}>
+                ${L(c, 'description') ? `<p class="cat-desc">${esc(L(c, 'description'))}</p>` : ''}
                 <div class="items">${c.items.map(itemHtml).join('')}</div>
               </div>
-            </section>`).join('')}
-        </main>` : `
-        <main class="menu menu-empty"><div class="wrap"><p>${t('empty')}</p></div></main>`}
-      ${infoHtml()}
-      <dialog class="sheet" aria-label="${t('details')}"></dialog>`;
+            </div>
+          </section>`).join('')}
+      </main>`;
+  }
+
+  // Tiles: a start screen of section tiles; a tile opens its section (#cat-… in the address,
+  // so the phone's back button returns to the tiles).
+  function tilesHomeHtml() {
+    return `
+      <main class="menu tiles-home">
+        <div class="wrap">
+          <div class="tiles">
+            ${categories.map(c => {
+              const img = catImage(c);
+              return `
+                <a class="tile${img ? '' : ' no-img'}" href="#cat-${esc(c.id)}" data-cat="${esc(c.id)}">
+                  ${img ? `<img class="tile-img" src="${esc(img)}" alt="" loading="lazy">` : ''}
+                  <span class="tile-text">
+                    <span class="tile-name">${esc(L(c, 'name'))}</span>
+                    <span class="tile-count">${itemCount(c.items.length)}</span>
+                  </span>
+                </a>`;
+            }).join('')}
+          </div>
+        </div>
+      </main>`;
+  }
+
+  function tileViewHtml(c) {
+    return `
+      <nav class="tile-bar">
+        <div class="wrap">
+          <button type="button" class="tile-back"><span aria-hidden="true">←</span> ${t('back')}</button>
+          ${langSwitchHtml()}
+        </div>
+      </nav>
+      <main class="menu">${sectionHtml(c, true)}</main>`;
+  }
+
+  const catFromHash = () => {
+    if (!location.hash.startsWith('#cat-')) return null;
+    const id = decodeURIComponent(location.hash.slice(5));
+    return categories.find(c => c.id === id) || null;
+  };
+
+  let observer = null;
+  let chips = [], sections = [];
+
+  // Builds the whole page in the current language. `active` is the open tab / accordion section.
+  function render(active) {
+    root.lang = lang;
+    document.title = settings.name ? `${settings.name} · ${t('title')}` : t('title');
+    const empty = `<main class="menu menu-empty"><div class="wrap"><p>${t('empty')}</p></div></main>`;
+    const sheet = `<dialog class="sheet" aria-label="${t('details')}"></dialog>`;
+    const tileCat = layout === 'tiles' && catFromHash();
+    root.dataset.view = tileCat ? 'section' : 'home';
+
+    if (tileCat) {
+      app.innerHTML = tileViewHtml(tileCat) + sheet;
+    } else {
+      let body = empty;
+      if (categories.length) {
+        if (layout === 'tiles') body = tilesHomeHtml();
+        else if (layout === 'accordion') body = accordionHtml(active);
+        else body = chipsLayoutHtml(active || categories[0].id);
+      }
+      app.innerHTML = heroHtml() + featuredHtml() + body + infoHtml() + sheet;
+    }
 
     chips = [...app.querySelectorAll('.chip')];
     sections = [...app.querySelectorAll('.cat')];
 
-    // Highlight the chip of the section currently in the middle of the screen.
+    // Scroll layout: highlight the chip of the section currently in the middle of the screen.
     if (observer) observer.disconnect();
-    if (!tabs && 'IntersectionObserver' in window) {
+    if (layout === 'scroll' && 'IntersectionObserver' in window) {
       observer = new IntersectionObserver(entries => {
         entries.forEach(e => { if (e.isIntersecting) setActive(e.target.dataset.cat); });
       }, { rootMargin: '-35% 0px -60% 0px' });
@@ -256,6 +375,31 @@
     if (nav.getBoundingClientRect().top <= 0) window.scrollTo({ top: nav.offsetTop, behavior: 'smooth' });
   }
 
+  function toggleSection(id) {
+    sections.forEach(sec => {
+      const open = sec.dataset.cat === id && !sec.classList.contains('open');
+      sec.classList.toggle('open', open);
+      sec.querySelector('.acc-body').hidden = !open;
+      sec.querySelector('.acc-head').setAttribute('aria-expanded', open);
+      if (open) sec.scrollIntoView({ block: 'start' });
+    });
+  }
+
+  // Tiles: the section lives in the address, so a tap on a tile and the phone's back button
+  // both just re-render.
+  let cameFromTiles = false;
+  window.addEventListener('hashchange', () => {
+    if (layout !== 'tiles') return;
+    render();
+    window.scrollTo(0, 0);
+  });
+  function backToTiles() {
+    if (cameFromTiles) return history.back();
+    history.replaceState(null, '', location.pathname + location.search);
+    render();
+    window.scrollTo(0, 0);
+  }
+
   function switchLang(next) {
     if (next === lang) return;
     lang = next;
@@ -266,7 +410,8 @@
       history.replaceState(null, '', url);
     }
     const y = window.scrollY;
-    render(app.querySelector('.chip.active')?.dataset.cat);
+    const open = layout === 'accordion' ? app.querySelector('.cat.open') : app.querySelector('.chip.active');
+    render(open && open.dataset.cat);
     window.scrollTo(0, y);
   }
 
@@ -307,7 +452,11 @@
     if (langBtn) return switchLang(langBtn.dataset.lang);
     const chip = e.target.closest('.chip');
     if (chip && tabs) return openTab(chip.dataset.cat);
-    const item = e.target.closest('.item');
+    const accHead = e.target.closest('.acc-head');
+    if (accHead) return toggleSection(accHead.closest('.cat').dataset.cat);
+    if (e.target.closest('.tile')) cameFromTiles = true;   // the link itself changes the address
+    if (e.target.closest('.tile-back')) return backToTiles();
+    const item = e.target.closest('.item, .feat');
     if (item) openItem(item.dataset.id);
   });
   app.addEventListener('keydown', e => {
@@ -318,10 +467,11 @@
   render();
   document.body.classList.remove('dm-loading');
 
-  // The page is built after load, so jump to a #section link by hand.
-  const target = location.hash && app.querySelector(`[id="${CSS.escape(location.hash.slice(1))}"]`);
+  // The page is built after load, so jump to a #section link by hand (tiles read it themselves).
+  const target = layout !== 'tiles' && location.hash && app.querySelector(`[id="${CSS.escape(location.hash.slice(1))}"]`);
   if (target) {
     if (tabs) openTab(target.dataset.cat);
+    else if (layout === 'accordion') toggleSection(target.dataset.cat);
     else target.scrollIntoView();
   }
 })();

@@ -116,7 +116,10 @@
 
   function imageRefs(m, s) {
     const refs = new Set();
-    (m.categories || []).forEach(c => (c.items || []).forEach(i => i.image && refs.add(i.image)));
+    (m.categories || []).forEach(c => {
+      if (c.image) refs.add(c.image);
+      (c.items || []).forEach(i => i.image && refs.add(i.image));
+    });
     if (s.logo) refs.add(s.logo);
     return refs;
   }
@@ -367,6 +370,8 @@
     settings.links = Array.isArray(settings.links) ? settings.links : [];
     settings.schedule = Array.isArray(settings.schedule) ? settings.schedule : [];
     settings.location = settings.location || null;
+    settings.layout = settings.layout || '';
+    settings.featured = !!settings.featured;
     savedMenu = JSON.stringify(menu);
     savedSettings = JSON.stringify(settings);
 
@@ -497,6 +502,8 @@
     $('#s-name').value = editingCat.draft.name;
     $('#s-desc').value = editingCat.draft.description || '';
     $('#s-name-en').value = editingCat.draft.nameEn || '';
+    editingCat.image = editingCat.draft.image || '';
+    renderCatPhoto();
     $('#s-desc-en').value = editingCat.draft.descriptionEn || '';
     $('#cat-delete').hidden = !cat;
     $('#cat-dialog').showModal();
@@ -510,10 +517,33 @@
     d.name = $('#s-name').value.trim();
     d.description = $('#s-desc').value.trim();
     d.nameEn = $('#s-name-en').value.trim();
+    d.image = editingCat.image;
     d.descriptionEn = $('#s-desc-en').value.trim();
     if (editingCat.isNew) menu.categories.push(d);
     $('#cat-dialog').close();
     renderAll();
+  });
+
+  function renderCatPhoto() {
+    $('#s-photo').innerHTML = editingCat.image ? `<img src="${esc(imgSrc(editingCat.image))}" alt="">` : `<span>${t('none')}</span>`;
+    $('#s-photo-remove').hidden = !editingCat.image;
+  }
+
+  $('#s-file').addEventListener('change', async e => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      editingCat.image = addPendingImage(await processImage(file, 1200, false), $('#s-name').value || 'section');
+      renderCatPhoto();
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  });
+
+  $('#s-photo-remove').addEventListener('click', () => {
+    editingCat.image = '';
+    renderCatPhoto();
   });
 
   $('#cat-delete').addEventListener('click', () => {
@@ -640,7 +670,9 @@
     $('#theme-field').hidden = themes.length < 2;
     $('#theme-select').innerHTML = themes.map(th => `<option value="${esc(th.id)}">${esc(localized(th, 'name', lang) || th.id)}</option>`).join('');
     $('#english-on').checked = settings.english !== false;
+    $('#featured-on').checked = !!settings.featured;
     $('#theme-select').value = settings.theme || (themes[0] && themes[0].id) || '';
+    renderLayoutDefault();
     $('#accent-on').checked = !!settings.accent;
     $('#accent-color').value = settings.accent || '#b5651d';
     $('#accent-color').disabled = !settings.accent;
@@ -650,6 +682,13 @@
     renderMapStatus();
     $$('[data-link-kind]', settingsForm).forEach(checkLink);
     renderPriceExample();
+  }
+
+  // "Design default (Tiles)": the layout the chosen design uses when the café hasn't picked one.
+  function renderLayoutDefault() {
+    const theme = themes.find(th => th.id === settings.theme) || themes[0] || {};
+    const key = { tabs: 'layoutTabs', tiles: 'layoutTiles', accordion: 'layoutAccordion' }[theme.nav] || 'layoutScroll';
+    $('#layout-default').textContent = t('layoutDefault', { name: t(key).split(':')[0] });
   }
 
   /* ---------- links ---------- */
@@ -921,7 +960,10 @@
       settings.accent = $('#accent-on').checked ? $('#accent-color').value : '';
     } else if (field.id === 'english-on') {
       settings.english = field.checked;
+    } else if (field.id === 'featured-on') {
+      settings.featured = field.checked;
     }
+    if (field.name === 'theme') renderLayoutDefault();
     renderPriceExample();
     renderAll();
   });

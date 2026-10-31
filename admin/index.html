@@ -82,6 +82,21 @@
               <select name="theme" id="theme-select"></select>
             </div>
             <div class="field">
+              <label for="layout-select" data-i18n="layout"></label>
+              <select name="layout" id="layout-select">
+                <option value="" id="layout-default"></option>
+                <option value="scroll" data-i18n="layoutScroll"></option>
+                <option value="tabs" data-i18n="layoutTabs"></option>
+                <option value="tiles" data-i18n="layoutTiles"></option>
+                <option value="accordion" data-i18n="layoutAccordion"></option>
+              </select>
+              <small data-i18n="layoutHint"></small>
+            </div>
+            <div class="field">
+              <label class="check"><input type="checkbox" id="featured-on"> <span data-i18n="featuredOn"></span></label>
+              <small data-i18n="featuredHint"></small>
+            </div>
+            <div class="field">
               <span data-i18n="brandColor"></span>
               <div class="color-row">
                 <label class="check"><input type="checkbox" id="accent-on"> <span data-i18n="useOwnColor"></span></label>
@@ -238,6 +253,15 @@
       <div class="dialog-body">
         <label class="field"><span data-i18n="sectionName"></span><input id="s-name" required maxlength="60" data-i18n-ph="sectionPlaceholder"></label>
         <label class="field"><span data-i18n="sectionDesc"></span><input id="s-desc" maxlength="160"></label>
+        <div class="field">
+          <span data-i18n="sectionPhoto"></span>
+          <div class="logo-row">
+            <div id="s-photo" class="logo-preview"></div>
+            <label class="btn sm"><span data-i18n="chooseImage"></span><input id="s-file" type="file" accept="image/*" hidden></label>
+            <button id="s-photo-remove" class="btn ghost sm" type="button" data-i18n="remove"></button>
+          </div>
+          <small data-i18n="sectionPhotoHint"></small>
+        </div>
         <fieldset class="en-group en-only">
           <legend data-i18n="inEnglish"></legend>
           <label class="field"><span data-i18n="sectionName"></span><input id="s-name-en" maxlength="60" lang="en" placeholder="e.g. Coffee"></label>

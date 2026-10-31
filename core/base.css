@@ -152,3 +152,63 @@ h1, h2, h3 { font-family: var(--font-head); }
   border: 0; border-radius: 50%; cursor: pointer; font-size: 22px; line-height: 1;
   background: rgba(0, 0, 0, .5); color: #fff;
 }
+
+/* ---------- "Preporučujemo" strip (optional, any layout) ---------- */
+.featured { padding: 22px 0 4px; }
+.featured-title { margin: 0 0 10px; font-size: 1.15rem; }
+.featured-row {
+  display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none;
+  max-width: var(--wrap); margin: 0 auto; padding: 2px 16px 14px;
+}
+.featured-row::-webkit-scrollbar { display: none; }
+.feat {
+  flex: none; width: 150px; display: grid; align-content: start; gap: 4px; padding: 0 0 10px; overflow: hidden;
+  scroll-snap-align: start; cursor: pointer; text-align: left; font: inherit;
+  border: 0; border-radius: var(--radius); background: var(--surface); color: var(--text); box-shadow: 0 0 0 1px var(--line);
+}
+.feat-img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: color-mix(in srgb, var(--accent) 16%, var(--surface)); }
+.feat-name, .feat-price { padding: 0 10px; }
+.feat-name { font-weight: 600; font-size: .92rem; line-height: 1.25; }
+.feat-price { font-weight: 600; font-size: .85rem; color: var(--accent); }
+
+/* ---------- Layout: accordion (sections fold open one at a time) ---------- */
+[data-nav="accordion"] .cat { padding: 0; scroll-margin-top: 0; }
+.acc { padding-top: 10px; }
+.acc-h { margin: 0; font-size: inherit; }
+.acc-head {
+  display: flex; align-items: center; gap: 12px; width: 100%; padding: 18px 0; cursor: pointer; text-align: left;
+  border: 0; border-bottom: 1px solid var(--line); background: none; color: inherit; font: inherit;
+}
+.acc-head .cat-name { flex: 1; min-width: 0; margin: 0; font-size: 1.3rem; line-height: 1.2; }
+.acc-count { flex: none; font-family: var(--font-body); font-size: .8rem; color: var(--muted); }
+.acc-chev {
+  flex: none; width: 9px; height: 9px; margin: 0 4px 4px; opacity: .6; transition: transform .2s;
+  border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg);
+}
+.cat.open .acc-chev { transform: rotate(225deg); margin-bottom: -4px; }
+.acc-body { padding: 14px 0 26px; }
+.acc-body .cat-desc { margin: 0 0 14px; }
+
+/* ---------- Layout: tiles (start screen of sections; a tile opens its section) ---------- */
+.tiles-home { padding: 24px 0 8px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.tile {
+  position: relative; display: block; aspect-ratio: 1 / 1; overflow: hidden; text-decoration: none;
+  border-radius: var(--radius); background: var(--surface); color: var(--text); box-shadow: 0 0 0 1px var(--line);
+}
+.tile-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.tile-text {
+  position: absolute; left: 0; right: 0; bottom: 0; display: grid; gap: 2px; padding: 34px 12px 12px;
+  color: #ffffff; background: linear-gradient(transparent, rgba(0, 0, 0, .75));
+}
+.tile.no-img .tile-text { inset: 0; align-content: end; color: var(--text); background: color-mix(in srgb, var(--accent) 16%, var(--surface)); }
+.tile-name { font-family: var(--font-head); font-size: 1.2rem; font-weight: 700; line-height: 1.15; }
+.tile-count { font-size: .78rem; opacity: .85; }
+.tile-bar { position: sticky; top: 0; z-index: 10; background: var(--nav-bg); border-bottom: 1px solid var(--line); }
+.tile-bar .wrap { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-block: 10px; }
+.tile-back {
+  display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; cursor: pointer;
+  border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--text); font: inherit; font-weight: 600;
+}
+.tile-bar .lang-switch { position: static; }
+[data-nav="tiles"][data-view="section"] .cat { padding-top: 22px; }

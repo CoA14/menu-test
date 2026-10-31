@@ -5,6 +5,6 @@
   "descriptionEn": "Deep green and brass, like a Paris bistro. For restaurants with a wine list.",
   "venue": "restaurant",
   "layout": "text",
-  "nav": "scroll",
+  "nav": "tiles",
   "themeColor": "#1d3a2f"
 }
