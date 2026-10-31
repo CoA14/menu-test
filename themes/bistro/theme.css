@@ -1,0 +1,45 @@
+@import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,500;0,600;1,500&family=Karla:wght@400;600&display=swap');
+
+:root {
+  --bg: #1d3a2f;
+  --surface: #244536;
+  --text: #f3ecdc;
+  --muted: #b9c2b2;
+  --line: rgba(200, 164, 106, .32);
+  --accent: #c8a46a;
+  --accent-ink: #1d3a2f;
+  --font-head: 'EB Garamond', Georgia, serif;
+  --font-body: 'Karla', system-ui, sans-serif;
+  --radius: 4px;
+  --nav-bg: rgba(29, 58, 47, .96);
+  --chip-text: var(--muted);
+  --chip-active-bg: transparent;
+  --chip-active-text: var(--accent);
+  --wrap: 680px;
+  color-scheme: dark;
+}
+
+/* Name inside a brass double frame, like a bistro sign */
+.hero { padding: 54px 0 30px; }
+.hero .wrap { width: calc(100% - 32px); padding: 30px 18px; border: 1px solid var(--accent); outline: 1px solid var(--line); outline-offset: -7px; }
+.hero-name { font-weight: 500; font-style: italic; font-size: clamp(2.4rem, 10vw, 3.2rem); }
+.hero-tagline { font-size: .72rem; text-transform: uppercase; letter-spacing: .3em; color: var(--accent); }
+
+.catnav { border-block: 1px solid var(--line); }
+.chip { font-family: var(--font-head); font-size: 1.12rem; font-style: italic; }
+.chip.active { text-decoration: underline; text-underline-offset: 5px; }
+
+.cat-head { text-align: center; }
+.cat-name { font-size: 1.9rem; font-weight: 500; font-style: italic; color: var(--accent); }
+.cat-name::after { content: ''; display: block; width: 40px; height: 1px; margin: 10px auto 0; background: var(--accent); }
+
+.item-name { font-family: var(--font-head); font-size: 1.3rem; font-weight: 500; }
+.leader { border-bottom: 1px dotted var(--accent); opacity: .55; transform: translateY(-5px); }
+.item-price { font-family: var(--font-head); font-size: 1.25rem; font-weight: 600; color: var(--accent); }
+.tag { border-color: var(--line); color: var(--muted); }
+.soldout-badge { background: var(--accent); color: var(--accent-ink); }
+
+.info { border-top: 1px solid var(--line); }
+.info-grid dt { color: var(--accent); }
+.sheet-card { background: var(--surface); }
+.sheet-name { font-style: italic; font-weight: 500; font-size: 1.9rem; }

@@ -1,0 +1,27 @@
+{
+  "name": "Test",
+  "tagline": "",
+  "taglineEn": "",
+  "logo": "",
+  "theme": "bistro",
+  "accent": "",
+  "english": true,
+  "currency": "RSD",
+  "currencyPosition": "after",
+  "priceDecimals": 0,
+  "decimalSeparator": ",",
+  "address": "",
+  "phone": "",
+  "hours": "",
+  "hoursEn": "",
+  "wifiName": "",
+  "wifiPassword": "",
+  "instagram": "",
+  "note": "",
+  "noteEn": "",
+  "repo": {
+    "owner": "",
+    "repo": "",
+    "branch": "main"
+  }
+}

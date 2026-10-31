@@ -1,0 +1,10 @@
+{
+  "name": "Bistro",
+  "nameEn": "Bistro",
+  "description": "Tamnozelena i mesing, kao pariski bistro. Za restorane sa vinskom kartom.",
+  "descriptionEn": "Deep green and brass, like a Paris bistro. For restaurants with a wine list.",
+  "venue": "restaurant",
+  "layout": "text",
+  "nav": "scroll",
+  "themeColor": "#1d3a2f"
+}
