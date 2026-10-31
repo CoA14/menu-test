@@ -1045,6 +1045,17 @@
     ctx.fill();
   }
 
+  // Which modules belong to the three corner squares, and to the small alignment squares (5×5),
+  // which stay solid in the dots style or scanners lose them.
+  function qrRegions(n) {
+    const finder = (r, c) => (r < 7 && c < 7) || (r < 7 && c >= n - 7) || (r >= n - 7 && c < 7);
+    const align = [];
+    const pos = ALIGNMENT[(n - 17) / 4] || [];
+    for (const r of pos) for (const c of pos) if (!finder(r, c)) align.push([r - 2, c - 2]);
+    const inAlign = (r, c) => align.some(([ar, ac]) => r >= ar && r < ar + 5 && c >= ac && c < ac + 5);
+    return { finder, inAlign };
+  }
+
   // Draws the QR modules into a square of `size` px at (x, y), including the white quiet zone.
   function drawQr(ctx, qr, x, y, size, style, ink) {
     const n = qr.getModuleCount();
@@ -1054,12 +1065,7 @@
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(x, y, size, size);
     ctx.fillStyle = ink;
-    const finder = (r, c) => (r < 7 && c < 7) || (r < 7 && c >= n - 7) || (r >= n - 7 && c < 7);
-    // The small alignment squares (5×5) also stay solid in the dots style, or scanners lose them.
-    const align = [];
-    const pos = ALIGNMENT[(n - 17) / 4] || [];
-    for (const r of pos) for (const c of pos) if (!finder(r, c)) align.push([r - 2, c - 2]);
-    const inAlign = (r, c) => align.some(([ar, ac]) => r >= ar && r < ar + 5 && c >= ac && c < ac + 5);
+    const { finder, inAlign } = qrRegions(n);
     for (let r = 0; r < n; r++) {
       for (let c = 0; c < n; c++) {
         if (!qr.isDark(r, c) || finder(r, c)) continue;
@@ -1093,6 +1099,125 @@
       ctx.fillStyle = ink;
       roundRect(ctx, px + cell * 2, py + cell * 2, cell * 3, cell * 3, radius * 0.5);
     }
+  }
+
+  /* Vector version of the code for a laser engraver or a print shop: black, in the chosen style,
+     50 mm including the quiet zone, with the logo in the middle when it's on. Shapes never overlap
+     (engraving software can read overlaps as holes): squares and rounded squares are traced into
+     outlines, dots are separate circles. */
+  let lastQr = null;
+
+  // Outlines around the "on" cells, each a list of corners; dark is on the right of every edge,
+  // so outer edges run clockwise and holes the other way.
+  function traceCells(isOn, n) {
+    const out = new Map();
+    const add = (x1, y1, x2, y2) => {
+      const key = `${x1},${y1}`;
+      if (!out.has(key)) out.set(key, []);
+      out.get(key).push([x2, y2]);
+    };
+    for (let r = 0; r < n; r++) {
+      for (let c = 0; c < n; c++) {
+        if (!isOn(r, c)) continue;
+        if (!isOn(r - 1, c)) add(c, r, c + 1, r);
+        if (!isOn(r, c + 1)) add(c + 1, r, c + 1, r + 1);
+        if (!isOn(r + 1, c)) add(c + 1, r + 1, c, r + 1);
+        if (!isOn(r, c - 1)) add(c, r + 1, c, r);
+      }
+    }
+    const loops = [];
+    for (const [start, edges] of out) {
+      while (edges.length) {
+        const [sx, sy] = start.split(',').map(Number);
+        const pts = [[sx, sy]];
+        let x = sx, y = sy, dir = null;
+        do {
+          const next = out.get(`${x},${y}`);
+          // Two cells touching only at a corner: turn right, so each keeps its own outline.
+          let i = 0;
+          if (dir && next.length > 1) {
+            const j = next.findIndex(([nx, ny]) => nx - x === -dir[1] && ny - y === dir[0]);
+            if (j >= 0) i = j;
+          }
+          const [nx, ny] = next.splice(i, 1)[0];
+          dir = [nx - x, ny - y];
+          x = nx;
+          y = ny;
+          pts.push([x, y]);
+        } while (x !== sx || y !== sy);
+        // Keep only the corners (where the direction changes).
+        const k = pts.length - 1;
+        const corners = [];
+        for (let i = 0; i < k; i++) {
+          const [px, py] = pts[(i - 1 + k) % k], [cx, cy] = pts[i], [qx, qy] = pts[i + 1];
+          const din = [cx - px, cy - py], dout = [qx - cx, qy - cy];
+          if (din[0] !== dout[0] || din[1] !== dout[1]) corners.push({ x: cx, y: cy, din, dout });
+        }
+        loops.push(corners);
+      }
+    }
+    return loops;
+  }
+
+  // One outline as SVG path data, outward corners rounded by `radius` (inward ones stay sharp).
+  function outlinePath(corners, radius, shift) {
+    const f = v => +(v + shift).toFixed(3);
+    const parts = corners.map(({ x, y, din, dout }) => {
+      const r = din[0] * dout[1] - din[1] * dout[0] > 0 ? radius : 0;
+      return { a: [x - din[0] * r, y - din[1] * r], b: [x + dout[0] * r, y + dout[1] * r], r };
+    });
+    let d = `M${f(parts[0].b[0])} ${f(parts[0].b[1])}`;
+    for (let i = 1; i <= parts.length; i++) {
+      const p = parts[i % parts.length];
+      d += `L${f(p.a[0])} ${f(p.a[1])}`;
+      if (p.r) d += `A${p.r} ${p.r} 0 0 1 ${f(p.b[0])} ${f(p.b[1])}`;
+    }
+    return `${d}Z`;
+  }
+
+  function roundRectPath(x, y, size, r) {
+    if (!r) return `M${x} ${y}h${size}v${size}h${-size}Z`;
+    const s = size - 2 * r;
+    return `M${x + r} ${y}h${s}a${r} ${r} 0 0 1 ${r} ${r}v${s}a${r} ${r} 0 0 1 ${-r} ${r}h${-s}a${r} ${r} 0 0 1 ${-r} ${-r}v${-s}a${r} ${r} 0 0 1 ${r} ${-r}Z`;
+  }
+
+  function qrSvg({ qr, style, logo }) {
+    const n = qr.getModuleCount(), Q = 4, size = n + Q * 2;
+    const { finder, inAlign } = qrRegions(n);
+    // The modules under the logo are left out, as the logo covers them on the picture too.
+    const box = size * 0.22, bx = (size - box) / 2;
+    const underLogo = (r, c) => logo && c + Q < bx + box && c + Q + 1 > bx && r + Q < bx + box && r + Q + 1 > bx;
+    const dark = (r, c) => r >= 0 && c >= 0 && r < n && c < n && qr.isDark(r, c) && !finder(r, c) && !underLogo(r, c);
+
+    const traced = style === 'dots' ? (r, c) => dark(r, c) && inAlign(r, c) : dark;
+    const paths = traceCells(traced, n).map(loop => outlinePath(loop, style === 'rounded' ? 0.4 : 0, Q));
+    const R = style === 'square' ? 0 : 1.6;
+    for (const [r, c] of [[0, 0], [0, n - 7], [n - 7, 0]]) {
+      paths.push(roundRectPath(c + Q, r + Q, 7, R), roundRectPath(c + Q + 1, r + Q + 1, 5, R * 0.7),
+        roundRectPath(c + Q + 2, r + Q + 2, 3, R * 0.5));
+    }
+    const dots = [];
+    if (style === 'dots') {
+      for (let r = 0; r < n; r++) {
+        for (let c = 0; c < n; c++) {
+          if (dark(r, c) && !inAlign(r, c)) dots.push(`<circle cx="${c + Q + 0.5}" cy="${r + Q + 0.5}" r="0.43"/>`);
+        }
+      }
+    }
+    let image = '';
+    if (logo) {
+      const scale = Math.min(600 / logo.width, 600 / logo.height, 1);
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(logo.width * scale);
+      canvas.height = Math.round(logo.height * scale);
+      canvas.getContext('2d').drawImage(logo, 0, 0, canvas.width, canvas.height);
+      const inner = box * 0.8, ix = +(bx + (box - inner) / 2).toFixed(3);
+      image = `<image id="logo" x="${ix}" y="${ix}" width="${+inner.toFixed(3)}" height="${+inner.toFixed(3)}" preserveAspectRatio="xMidYMid meet" xlink:href="${canvas.toDataURL('image/png')}"/>`;
+    }
+    return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="50mm" height="50mm" viewBox="0 0 ${size} ${size}">
+<path fill="#000000" fill-rule="evenodd" d="${paths.join('')}"/>
+${dots.length ? `<g fill="#000000">${dots.join('')}</g>\n` : ''}${image}</svg>
+`;
   }
 
   /* Fonts for the QR text: the menu's own by default (its font choice, or the design's), or any
@@ -1230,6 +1355,7 @@
     const qr = make(0, 'H');            // highest error correction: still scans with a logo on top
     qr.addData(url);
     qr.make();
+    lastQr = { qr, style: qrPrefs.style, logo };
 
     const { ink, frame, frameText } = qrColors();
     const style = qrPrefs.style;
@@ -1328,16 +1454,19 @@
   });
   $('#qr-caption').addEventListener('input', e => { qrPrefs.caption = e.target.value; writeStorage(QR_KEY, qrPrefs); renderQr(); });
 
-  $('#qr-download').addEventListener('click', () => {
-    $('#qr-canvas').toBlob(blob => {
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `qr-${slug(settings.name || 'meni')}.png`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-    }, 'image/png');
+  function saveBlob(blob, ext) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `qr-${slug(settings.name || 'meni')}.${ext}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }
+
+  $('#qr-download').addEventListener('click', () => $('#qr-canvas').toBlob(blob => saveBlob(blob, 'png'), 'image/png'));
+  $('#qr-download-svg').addEventListener('click', () => {
+    if (lastQr) saveBlob(new Blob([qrSvg(lastQr)], { type: 'image/svg+xml' }), 'svg');
   });
 
 
