@@ -4,7 +4,7 @@
   "taglineEn": "All around",
   "logo": "content/images/logo-xi1qb.webp",
   "theme": "bistro",
-  "accent": "",
+  "accent": "#ff0000",
   "english": true,
   "currency": "RSD",
   "currencyPosition": "after",
