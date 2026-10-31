@@ -409,7 +409,7 @@
 
   $$('.tab').forEach(tab => tab.addEventListener('click', () => {
     $$('.tab').forEach(t => t.classList.toggle('active', t === tab));
-    ['menu', 'settings', 'qr'].forEach(id => { $(`#tab-${id}`).hidden = tab.dataset.tab !== id; });
+    ['menu', 'settings', 'qr', 'help'].forEach(id => { $(`#tab-${id}`).hidden = tab.dataset.tab !== id; });
     if (tab.dataset.tab === 'qr') renderQr();
     window.scrollTo(0, 0);
   }));

@@ -211,6 +211,15 @@ html:has(dialog[open]) { overflow: hidden; }
 .unit-row input { flex: 1; min-width: 0; }
 .unit-row select { width: 6.5em; flex: none; }
 
+/* Help tab: questions that open on tap */
+.guide details { border-top: 1px solid var(--line); }
+.guide details:last-child { border-bottom: 1px solid var(--line); }
+.guide summary { padding: 14px 4px; font-weight: 600; cursor: pointer; list-style-position: outside; margin-left: 18px; }
+.guide details[open] summary { color: var(--accent); }
+.guide details > div { padding: 0 4px 14px 22px; display: grid; gap: 8px; }
+.guide details p { margin: 0; line-height: 1.5; }
+.guide > div > .hint { margin-bottom: 12px; }
+
 /* QR code tab */
 .qr-preview { display: grid; place-items: center; padding: 16px; border-radius: var(--radius); background: #ffffff; }
 .qr-preview canvas { width: 100%; max-width: 340px; height: auto; }
