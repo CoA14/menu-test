@@ -10,6 +10,9 @@
   const app = document.getElementById('app');
   const root = document.documentElement;
   const LANG_KEY = 'dm-lang';
+  // Client copies load this script as menu.js?v=…; the design's CSS gets the same stamp so an
+  // update never mixes old and new files (see tools/stamp.js).
+  const VERSION = (document.currentScript && new URL(document.currentScript.src).search) || '';
 
   const STRINGS = {
     sr: {
@@ -78,7 +81,7 @@
     const requested = new URLSearchParams(location.search).get('theme');
     themeId = String(requested || settings.theme || 'classic').replace(/[^a-z0-9-]/gi, '');
     theme = await getJSON(`themes/${themeId}/theme.json`).catch(() => ({}));
-    await loadCss(`themes/${themeId}/theme.css`);
+    await loadCss(`themes/${themeId}/theme.css${VERSION}`);
   } catch (err) {
     app.innerHTML = `<p class="dm-error">${t('loadError')}</p>`;
     document.body.classList.remove('dm-loading');
