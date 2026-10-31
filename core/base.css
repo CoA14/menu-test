@@ -120,7 +120,10 @@ h1, h2, h3 { font-family: var(--font-head); }
 .info-grid a { text-decoration: none; border-bottom: 1px solid var(--line); }
 /* Social and other links as small pills, in each theme's own colors */
 .info-links { display: inline-flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
-.info-grid .info-links a { display: inline-block; padding: 5px 12px; border: 1px solid var(--line); border-radius: 999px; font-size: .9rem; }
+.info-grid .info-links a { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px 5px 10px; border: 1px solid var(--line); border-radius: 999px; font-size: .9rem; }
+.info-links .icon { flex: none; }
+/* Opening hours as two columns: days | times */
+.hours { display: inline-grid; grid-template-columns: auto auto; gap: 2px 14px; text-align: left; }
 .info-note { margin: 24px 0 0; font-size: .85rem; color: var(--muted); }
 
 /* Item details sheet */

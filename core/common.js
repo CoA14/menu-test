@@ -58,6 +58,44 @@ window.DM = (function () {
     try { return /^https?:$/.test(new URL(url).protocol) ? url : ''; } catch { return ''; }
   }
 
+  // For social profiles: a clean link without tracking junk (?igsh=…) plus the @handle to show.
+  // Returns null when the text can't be a link.
+  function socialProfile(value, kind) {
+    const url = linkUrl(value, kind);
+    if (!url) return null;
+    const u = new URL(url);
+    const keepId = /profile\.php$/i.test(u.pathname) && u.searchParams.get('id');   // facebook.com/profile.php?id=…
+    u.search = keepId ? `?id=${encodeURIComponent(keepId)}` : '';
+    u.hash = '';
+    const first = decodeURIComponent(u.pathname.split('/').filter(Boolean)[0] || '').replace(/^@/, '');
+    const isProfile = first && !keepId && !/^(p|reel|reels|share|watch|video|groups|stories|explore)$/i.test(first);
+    return { url: u.href.replace(/\/$/, ''), handle: isProfile ? first : '' };
+  }
+
+  // Small line icons (24×24, drawn in the text colour) for the links on the menu.
+  const ICON_PATHS = {
+    instagram: '<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r=".6" fill="currentColor"/>',
+    facebook: '<circle cx="12" cy="12" r="9"/><path d="M15 8h-1.5A2.5 2.5 0 0 0 11 10.5V21M8.5 13h6"/>',
+    tiktok: '<path d="M14 3v11.5a3.5 3.5 0 1 1-3.5-3.5"/><path d="M14 3c.4 2.7 2.3 4.6 5 4.8"/>',
+    website: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.7 5.6 3.7 9s-1.2 6.4-3.7 9M12 3C9.5 5.6 8.3 8.6 8.3 12s1.2 6.4 3.7 9"/>',
+    link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
+  };
+  const icon = name => `<svg class="icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
+
+  // Opening hours are stored as rows: { from: 0, to: 4, open: '08:00', close: '22:00', closed: false },
+  // days 0 = Monday … 6 = Sunday. The text is written in the reader's language.
+  const DAYS = {
+    sr: { names: ['Pon', 'Uto', 'Sre', 'Čet', 'Pet', 'Sub', 'Ned'], closed: 'Ne radi' },
+    en: { names: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], closed: 'Closed' },
+  };
+  function scheduleLines(schedule, lang) {
+    const d = DAYS[lang] || DAYS.sr;
+    return (schedule || []).map(r => {
+      const days = r.from === r.to ? d.names[r.from] : `${d.names[r.from]}–${d.names[r.to]}`;
+      return { days, times: r.closed ? d.closed : `${r.open}–${r.close}` };
+    });
+  }
+
   function savedLang(key) {
     try { const v = localStorage.getItem(key); return LANGS.includes(v) ? v : null; } catch { return null; }
   }
@@ -92,5 +130,8 @@ window.DM = (function () {
     return res.json();
   }
 
-  return { LANGS, TAGS, SOCIAL, translator, localized, plural, linkUrl, savedLang, saveLang, esc, formatPrice, getJSON };
+  return {
+    LANGS, TAGS, SOCIAL, DAYS, translator, localized, plural, linkUrl, socialProfile, icon, scheduleLines,
+    savedLang, saveLang, esc, formatPrice, getJSON,
+  };
 })();

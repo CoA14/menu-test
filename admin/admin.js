@@ -2,7 +2,10 @@
    Saves to the local test server when one is running, otherwise straight to the GitHub repository. */
 (function () {
   'use strict';
-  const { LANGS, TAGS, translator, localized, plural, savedLang, saveLang, esc, formatPrice, getJSON } = window.DM;
+  const {
+    LANGS, TAGS, SOCIAL, DAYS, translator, localized, plural, linkUrl, socialProfile,
+    savedLang, saveLang, esc, formatPrice, getJSON,
+  } = window.DM;
 
   const ROOT = new URL('../', location.href);
   const MENU_PATH = 'content/menu.json';
@@ -362,6 +365,8 @@
     // Fields added in later versions, so older settings files don't count as "changed" on open.
     ['instagram', 'facebook', 'tiktok', 'website'].forEach(k => { settings[k] = settings[k] || ''; });
     settings.links = Array.isArray(settings.links) ? settings.links : [];
+    settings.schedule = Array.isArray(settings.schedule) ? settings.schedule : [];
+    settings.location = settings.location || null;
     savedMenu = JSON.stringify(menu);
     savedSettings = JSON.stringify(settings);
 
@@ -641,18 +646,242 @@
     $('#accent-color').disabled = !settings.accent;
     renderLogo();
     renderLinks();
+    renderSchedule();
+    renderMapStatus();
+    $$('[data-link-kind]', settingsForm).forEach(checkLink);
     renderPriceExample();
   }
+
+  /* ---------- links ---------- */
+
+  // Shows the warning under a link field when what's typed can't become a link.
+  function checkLink(input) {
+    const warn = input.parentElement.querySelector('.field-warn');
+    if (warn) warn.hidden = !input.value.trim() || !!linkUrl(input.value, input.dataset.linkKind);
+  }
+
+  // Social fields are tidied when the owner leaves them: full link, no tracking junk (?igsh=…).
+  settingsForm.addEventListener('change', e => {
+    const field = e.target;
+    const p = field.name in SOCIAL && socialProfile(field.value, field.name);
+    if (p && p.url !== field.value) {
+      field.value = settings[field.name] = p.url;
+      renderAll();
+    }
+  });
 
   // The owner's own links (name + link), e.g. Google reviews or a delivery app.
   function renderLinks() {
     $('#links-list').innerHTML = settings.links.map((l, i) => `
       <div class="link-row">
         <input data-link="${i}" data-key="label" value="${esc(l.label)}" placeholder="${esc(t('linkNamePlaceholder'))}" aria-label="${esc(t('linkName'))}" maxlength="40">
-        <input data-link="${i}" data-key="url" value="${esc(l.url)}" type="url" inputmode="url" placeholder="https://…" aria-label="${esc(t('linkUrl'))}" autocapitalize="off" spellcheck="false">
+        <input data-link="${i}" data-key="url" data-link-kind="link" value="${esc(l.url)}" type="url" inputmode="url" placeholder="https://…" aria-label="${esc(t('linkUrl'))}" autocapitalize="off" spellcheck="false">
         <button class="icon-btn" type="button" data-remove="${i}" aria-label="${esc(t('removeLink'))}">×</button>
+        <small class="field-warn" hidden>${esc(t('linkWarn'))}</small>
       </div>`).join('');
   }
+
+  /* ---------- opening hours ---------- */
+
+  function renderSchedule() {
+    const names = DAYS[lang].names;
+    const dayOptions = sel => names.map((n, d) => `<option value="${d}"${d === sel ? ' selected' : ''}>${n}</option>`).join('');
+    $('#schedule').innerHTML = settings.schedule.map((r, i) => `
+      <div class="sched-row${r.closed ? ' is-closed' : ''}">
+        <select data-sched="${i}" data-key="from" aria-label="${esc(t('dayFrom'))}">${dayOptions(r.from)}</select>
+        <span class="dash">–</span>
+        <select data-sched="${i}" data-key="to" aria-label="${esc(t('dayTo'))}">${dayOptions(r.to)}</select>
+        <input type="time" data-sched="${i}" data-key="open" value="${esc(r.open)}" aria-label="${esc(t('openAt'))}" ${r.closed ? 'disabled' : ''}>
+        <span class="dash">–</span>
+        <input type="time" data-sched="${i}" data-key="close" value="${esc(r.close)}" aria-label="${esc(t('closeAt'))}" ${r.closed ? 'disabled' : ''}>
+        <div class="sched-foot">
+          <label class="check"><input type="checkbox" data-sched="${i}" data-key="closed" ${r.closed ? 'checked' : ''}> ${esc(t('closedDay'))}</label>
+          <button class="link-btn" type="button" data-sched-remove="${i}">${esc(t('removeRow'))}</button>
+        </div>
+      </div>`).join('');
+    const legacy = !settings.schedule.length && settings.hours;
+    $('#hours-legacy').hidden = !legacy;
+    $('#hours-legacy').textContent = legacy ? t('legacyHours', { text: legacy.replace(/\n/g, ', ') }) : '';
+  }
+
+  // A new row continues from the day after the last one, with the same times.
+  $('#schedule-add').addEventListener('click', () => {
+    const last = settings.schedule[settings.schedule.length - 1];
+    settings.schedule.push(last
+      ? { from: Math.min(last.to + 1, 6), to: 6, open: last.open, close: last.close, closed: false }
+      : { from: 0, to: 4, open: '08:00', close: '22:00', closed: false });
+    renderSchedule();
+    renderAll();
+  });
+
+  $('#schedule').addEventListener('click', e => {
+    const btn = e.target.closest('[data-sched-remove]');
+    if (!btn) return;
+    settings.schedule.splice(Number(btn.dataset.schedRemove), 1);
+    renderSchedule();
+    renderAll();
+  });
+
+  function updateSchedule(field) {
+    const row = settings.schedule[Number(field.dataset.sched)];
+    const key = field.dataset.key;
+    if (key === 'closed') {
+      row.closed = field.checked;
+      renderSchedule();
+    } else {
+      row[key] = key === 'from' || key === 'to' ? Number(field.value) : field.value;
+    }
+  }
+
+  /* ---------- address on the map (Leaflet + OpenStreetMap, loaded on first use) ---------- */
+
+  const NOMINATIM = 'https://nominatim.openstreetmap.org/';
+  let leafletReady = null, map = null, marker = null, picked = null;
+  let pickedAddress = null;   // address parts from a search hit, until the pin is moved by hand
+
+  function loadLeaflet() {
+    if (!leafletReady) {
+      leafletReady = new Promise((resolve, reject) => {
+        const css = document.createElement('link');
+        css.rel = 'stylesheet';
+        css.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css';
+        document.head.appendChild(css);
+        const js = document.createElement('script');
+        js.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
+        js.onload = () => resolve(window.L);
+        js.onerror = () => { leafletReady = null; js.remove(); reject(new Error(t('mapLoadFailed'))); };
+        document.head.appendChild(js);
+      });
+    }
+    return leafletReady;
+  }
+
+  function renderMapStatus() {
+    $('#map-status').textContent = t(settings.location ? 'mapSet' : 'mapNotSet');
+    $('#map-clear').hidden = !settings.location;
+  }
+
+  function placePin(latlng, pan = true, address = null) {
+    pickedAddress = address;
+    picked = { lat: Number(Number(latlng.lat).toFixed(7)), lng: Number(Number(latlng.lng).toFixed(7)) };
+    if (!marker) {
+      const icon = window.L.divIcon({ className: 'map-pin', iconSize: [28, 28], iconAnchor: [14, 34] });
+      marker = window.L.marker(picked, { draggable: true, icon }).addTo(map);
+      marker.on('dragend', () => placePin(marker.getLatLng(), false));
+    } else {
+      marker.setLatLng(picked);
+    }
+    if (pan) map.panTo(picked);
+  }
+
+  async function nominatim(path) {
+    const res = await fetch(`${NOMINATIM}${path}&format=jsonv2&accept-language=sr-Latn,sr,en`);
+    if (!res.ok) throw new Error(t('mapNotFound'));
+    return res.json();
+  }
+
+  $('#map-open').addEventListener('click', async () => {
+    $('#map-q').value = settings.address || '';
+    $('#map-results').innerHTML = '';
+    $('#map-here').hidden = !(window.isSecureContext && navigator.geolocation);
+    $('#map-dialog').showModal();
+    try {
+      await loadLeaflet();
+    } catch (err) {
+      $('#map-dialog').close();
+      return toast(err.message, 'error');
+    }
+    const start = settings.location || { lat: 44.8125, lng: 20.4612 };   // Belgrade until something is picked
+    const zoom = settings.location ? 17 : 12;
+    if (!map) {
+      map = window.L.map('map').setView(start, zoom);
+      window.L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>',
+      }).addTo(map);
+      map.on('click', e => placePin(e.latlng, false));
+    } else {
+      map.setView(start, zoom);
+    }
+    picked = null;
+    if (marker) { marker.remove(); marker = null; }
+    if (settings.location) placePin(settings.location, false);
+    setTimeout(() => map.invalidateSize(), 60);
+  });
+
+  function goTo(hit) {
+    $('#map-results').innerHTML = '';
+    map.setView([hit.lat, hit.lon], 18);
+    placePin({ lat: hit.lat, lng: hit.lon }, false, hit.address);
+  }
+
+  // Places near what the map shows come first. The same street name exists in many towns,
+  // so with several matches the owner picks the right one from a short list.
+  let searchHits = [];
+  async function findOnMap() {
+    const q = $('#map-q').value.trim();
+    if (!q || !map) return;
+    try {
+      const b = map.getBounds();
+      const box = [b.getWest(), b.getNorth(), b.getEast(), b.getSouth()].map(n => n.toFixed(4)).join(',');
+      searchHits = await nominatim(`search?q=${encodeURIComponent(q)}&limit=5&viewbox=${box}&addressdetails=1`);
+      if (!searchHits.length) throw new Error(t('mapNotFound'));
+      if (searchHits.length === 1) return goTo(searchHits[0]);
+      $('#map-results').innerHTML = searchHits.map((h, i) => {
+        const parts = h.display_name.split(', ');
+        return `<li><button type="button" data-hit="${i}"><strong>${esc(parts.slice(0, 2).join(', '))}</strong><span>${esc(parts.slice(2, 5).join(', '))}</span></button></li>`;
+      }).join('');
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  }
+  $('#map-results').addEventListener('click', e => {
+    const btn = e.target.closest('[data-hit]');
+    if (btn) goTo(searchHits[Number(btn.dataset.hit)]);
+  });
+  $('#map-find').addEventListener('click', findOnMap);
+  $('#map-q').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); findOnMap(); } });
+
+  $('#map-here').addEventListener('click', () => {
+    navigator.geolocation.getCurrentPosition(
+      pos => { map.setView([pos.coords.latitude, pos.coords.longitude], 18); placePin({ lat: pos.coords.latitude, lng: pos.coords.longitude }, false); },
+      () => toast(t('mapNoGps'), 'error'),
+      { enableHighAccuracy: true, timeout: 10000 },
+    );
+  });
+
+  // Saves the pin, then fills the address from it (street and number, city) for the owner to correct.
+  $('#map-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    if (!picked) return toast(t('mapPickFirst'), 'error');
+    settings.location = picked;
+    $('#map-dialog').close();
+    try {
+      // A pin on a building outline can come back without a street, so ask again at street level.
+      // Without a street the typed address is kept rather than replaced by just the city.
+      let a = pickedAddress || {};
+      for (const zoom of [18, 17, 16]) {
+        if (a.road || a.pedestrian || a.square) break;
+        a = (await nominatim(`reverse?lat=${picked.lat}&lon=${picked.lng}&zoom=${zoom}&addressdetails=1`)).address || {};
+      }
+      const street = a.road || a.pedestrian || a.square || '';
+      const place = a.city || a.town || a.village || a.municipality || '';
+      const text = street ? [a.house_number ? `${street} ${a.house_number}` : street, place].filter(Boolean).join(', ') : '';
+      if (text) {
+        settings.address = text;
+        $('#address-input').value = text;
+        toast(t('mapAddressFilled'), 'success');
+        $('#address-input').focus();
+      }
+    } catch { /* keep the typed address */ }
+    renderMapStatus();
+    renderAll();
+  });
+
+  $('#map-clear').addEventListener('click', () => {
+    settings.location = null;
+    renderMapStatus();
+    renderAll();
+  });
 
   $('#link-add').addEventListener('click', () => {
     settings.links.push({ label: '', url: '' });
@@ -680,7 +909,10 @@
 
   settingsForm.addEventListener('input', e => {
     const field = e.target;
-    if (field.dataset.link) {
+    if (field.dataset.linkKind) checkLink(field);
+    if (field.dataset.sched) {
+      updateSchedule(field);
+    } else if (field.dataset.link) {
       settings.links[Number(field.dataset.link)][field.dataset.key] = field.value;
     } else if (field.name) {
       settings[field.name] = field.name === 'priceDecimals' ? Number(field.value) : field.value;

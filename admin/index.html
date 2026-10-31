@@ -118,10 +118,22 @@
 
           <div class="panel">
             <h2 data-i18n="secContact"></h2>
-            <label class="field"><span data-i18n="address"></span><input name="address"></label>
+            <div class="field">
+              <label for="address-input" data-i18n="address"></label>
+              <input id="address-input" name="address">
+              <div class="map-row">
+                <button id="map-open" class="btn ghost sm" type="button" data-i18n="pickOnMap"></button>
+                <span id="map-status" class="hint"></span>
+                <button id="map-clear" class="link-btn" type="button" data-i18n="mapClear" hidden></button>
+              </div>
+            </div>
             <label class="field"><span data-i18n="phone"></span><input name="phone" type="tel"></label>
-            <label class="field"><span data-i18n="hours"></span><textarea name="hours" rows="3" data-i18n-ph="hoursPlaceholder"></textarea></label>
-            <label class="field en-only"><span data-i18n="hoursEn"></span><textarea name="hoursEn" rows="3" lang="en" placeholder="Mon–Fri 08:00–22:00"></textarea></label>
+            <div class="field">
+              <span data-i18n="hours"></span>
+              <div id="schedule" class="schedule"></div>
+              <small id="hours-legacy" class="hint" hidden></small>
+              <button id="schedule-add" class="btn ghost sm" type="button" data-i18n="addHours"></button>
+            </div>
             <div class="field-row">
               <label class="field"><span data-i18n="wifiName"></span><input name="wifiName"></label>
               <label class="field"><span data-i18n="wifiPassword"></span><input name="wifiPassword"></label>
@@ -133,10 +145,10 @@
           <div class="panel">
             <h2 data-i18n="secLinks"></h2>
             <p class="hint" data-i18n="linksHint"></p>
-            <label class="field"><span>Instagram</span><input name="instagram" type="url" inputmode="url" placeholder="instagram.com/vaskafic" autocapitalize="off" spellcheck="false"></label>
-            <label class="field"><span>Facebook</span><input name="facebook" type="url" inputmode="url" placeholder="facebook.com/vaskafic" autocapitalize="off" spellcheck="false"></label>
-            <label class="field"><span>TikTok</span><input name="tiktok" type="url" inputmode="url" placeholder="tiktok.com/@vaskafic" autocapitalize="off" spellcheck="false"></label>
-            <label class="field"><span data-i18n="website"></span><input name="website" type="url" inputmode="url" placeholder="www.vaskafic.rs" autocapitalize="off" spellcheck="false"></label>
+            <label class="field"><span>Instagram</span><input name="instagram" data-link-kind="instagram" type="url" inputmode="url" placeholder="instagram.com/vaskafic" autocapitalize="off" spellcheck="false"><small class="field-warn" data-i18n="linkWarn" hidden></small></label>
+            <label class="field"><span>Facebook</span><input name="facebook" data-link-kind="facebook" type="url" inputmode="url" placeholder="facebook.com/vaskafic" autocapitalize="off" spellcheck="false"><small class="field-warn" data-i18n="linkWarn" hidden></small></label>
+            <label class="field"><span>TikTok</span><input name="tiktok" data-link-kind="tiktok" type="url" inputmode="url" placeholder="tiktok.com/@vaskafic" autocapitalize="off" spellcheck="false"><small class="field-warn" data-i18n="linkWarn" hidden></small></label>
+            <label class="field"><span data-i18n="website"></span><input name="website" data-link-kind="website" type="url" inputmode="url" placeholder="www.vaskafic.rs" autocapitalize="off" spellcheck="false"><small class="field-warn" data-i18n="linkWarn" hidden></small></label>
             <div class="field">
               <span data-i18n="otherLinks"></span>
               <div id="links-list" class="links-list"></div>
@@ -237,6 +249,29 @@
         <span class="spacer"></span>
         <button class="btn ghost" type="button" data-close data-i18n="cancel"></button>
         <button class="btn primary" type="submit" data-i18n="done"></button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- Map for marking the exact location (Leaflet + OpenStreetMap, loaded only when opened) -->
+  <dialog id="map-dialog" class="dialog map-dialog">
+    <form id="map-form" novalidate>
+      <header class="dialog-head">
+        <h2 data-i18n="mapTitle"></h2>
+        <button class="icon-btn" type="button" data-close data-i18n-aria="close">×</button>
+      </header>
+      <div class="map-search">
+        <input id="map-q" type="search" enterkeyhint="search" data-i18n-ph="mapSearchPlaceholder" autocomplete="off">
+        <button id="map-find" class="btn sm" type="button" data-i18n="mapFind"></button>
+      </div>
+      <ul id="map-results" class="map-results"></ul>
+      <div id="map" class="map"></div>
+      <p class="hint map-hint" data-i18n="mapHint"></p>
+      <footer class="dialog-foot">
+        <button id="map-here" class="btn ghost sm" type="button" data-i18n="mapMyLocation"></button>
+        <span class="spacer"></span>
+        <button class="btn ghost" type="button" data-close data-i18n="cancel"></button>
+        <button class="btn primary" type="submit" data-i18n="mapUse"></button>
       </footer>
     </form>
   </dialog>

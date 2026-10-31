@@ -2,7 +2,7 @@
    Every theme uses this same markup; themes only change styling and a few layout flags. */
 (async function () {
   'use strict';
-  const { LANGS, TAGS, SOCIAL, translator, localized, linkUrl, savedLang, saveLang, esc, formatPrice, getJSON } = window.DM;
+  const { LANGS, TAGS, SOCIAL, translator, localized, linkUrl, socialProfile, icon, scheduleLines, savedLang, saveLang, esc, formatPrice, getJSON } = window.DM;
   const app = document.getElementById('app');
   const root = document.documentElement;
   const LANG_KEY = 'dm-lang';
@@ -23,7 +23,6 @@
       password: 'Lozinka:',
       followUs: 'Pratite nas',
       links: 'Linkovi',
-      website: 'Web sajt',
       switchLang: 'Prebaci na engleski',
     },
     en: {
@@ -41,7 +40,6 @@
       password: 'Password:',
       followUs: 'Follow us',
       links: 'Links',
-      website: 'Website',
       switchLang: 'Switch to Serbian',
     },
   };
@@ -129,21 +127,40 @@
 
   function infoHtml() {
     const s = settings;
-    const hours = L(s, 'hours');
     const note = L(s, 'note');
     const rows = [];
-    if (hours) rows.push([t('hours'), esc(hours).replace(/\n/g, '<br>')]);
-    if (s.address) rows.push([t('address'), `<a href="https://maps.google.com/?q=${encodeURIComponent(s.address)}" target="_blank" rel="noopener">${esc(s.address)}</a>`]);
+
+    // Opening hours: picked rows if there are any, otherwise older free text.
+    const sched = scheduleLines(s.schedule, lang);
+    if (sched.length) {
+      rows.push([t('hours'), `<span class="hours">${sched.map(r => `<span>${esc(r.days)}</span><span>${esc(r.times)}</span>`).join('')}</span>`]);
+    } else if (L(s, 'hours')) {
+      rows.push([t('hours'), esc(L(s, 'hours')).replace(/\n/g, '<br>')]);
+    }
+
+    // With a pin from the map, the link opens that exact spot; otherwise maps search for the address.
+    if (s.address) {
+      const where = s.location ? `${s.location.lat},${s.location.lng}` : s.address;
+      rows.push([t('address'), `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(where)}" target="_blank" rel="noopener">${esc(s.address)}</a>`]);
+    }
     if (s.phone) rows.push([t('phone'), `<a href="tel:${esc(s.phone.replace(/[^\d+]/g, ''))}">${esc(s.phone)}</a>`]);
     if (s.wifiName) rows.push([t('wifi'), `${esc(s.wifiName)}${s.wifiPassword ? `<br><span class="muted">${t('password')}</span> ${esc(s.wifiPassword)}` : ''}`]);
+
     // Only links that were filled in (and make a valid address) are shown.
-    const linkList = list => `<span class="info-links">${list.map(([label, url]) =>
-      `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(label)}</a>`).join('')}</span>`;
-    const socials = Object.keys(SOCIAL).map(k => [SOCIAL[k].label, linkUrl(s[k], k)]).filter(([, url]) => url);
+    const linkList = list => `<span class="info-links">${list.map(([ic, text, url]) =>
+      `<a href="${esc(url)}" target="_blank" rel="noopener">${icon(ic)}<span>${esc(text)}</span></a>`).join('')}</span>`;
+    const socials = Object.keys(SOCIAL)
+      .map(k => [k, socialProfile(s[k], k)])
+      .filter(([, p]) => p)
+      .map(([k, p]) => [k, p.handle ? `@${p.handle}` : SOCIAL[k].label, p.url]);
     if (socials.length) rows.push([t('followUs'), linkList(socials)]);
-    const others = [[t('website'), linkUrl(s.website)], ...(s.links || []).map(l => [l.label || l.url, linkUrl(l.url)])]
-      .filter(([label, url]) => label && url);
+    const site = linkUrl(s.website);
+    const others = [
+      ...(site ? [['website', new URL(site).hostname.replace(/^www\./, ''), site]] : []),
+      ...(s.links || []).map(l => ['link', l.label || l.url, linkUrl(l.url)]).filter(([, text, url]) => text && url),
+    ];
     if (others.length) rows.push([t('links'), linkList(others)]);
+
     if (!rows.length && !note) return '';
     return `
       <footer class="info">
