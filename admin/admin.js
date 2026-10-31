@@ -987,9 +987,11 @@
   /* ---------- QR code (qrcode-generator, loaded on first use) ---------- */
 
   const QR_KEY = 'dm-qr';
-  const QR_STYLES = { square: 'qrSquare', rounded: 'qrRounded', dots: 'qrDots', frame: 'qrFrame' };
+  const QR_STYLES = { square: 'qrSquare', rounded: 'qrRounded', dots: 'qrDots' };
   let qrReady = null;
-  const qrPrefs = { style: 'rounded', colors: 'menu', logo: true, name: false, captionOn: true, caption: '', ...readStorage(QR_KEY) };
+  // font: '' = the menu's own font, a pairing id from core/fonts.json, or 'system'.
+  const qrPrefs = { style: 'rounded', card: false, colors: 'menu', font: '', logo: true, name: false, captionOn: true, caption: '', ...readStorage(QR_KEY) };
+  if (qrPrefs.style === 'frame') Object.assign(qrPrefs, { style: 'rounded', card: true });   // older saved choice
 
   function loadQrLibrary() {
     if (!qrReady) {
@@ -1070,8 +1072,11 @@
           ctx.beginPath();
           ctx.arc(px + cell / 2, py + cell / 2, cell * 0.43, 0, Math.PI * 2);
           ctx.fill();
-        } else if (style === 'rounded' || style === 'frame') {
-          roundRect(ctx, px + cell * 0.04, py + cell * 0.04, cell * 0.92, cell * 0.92, cell * 0.32);
+        } else if (style === 'rounded') {
+          // Rounded outside, joined to dark neighbours (thin gaps between squares confuse scanners).
+          roundRect(ctx, px, py, cell, cell, cell * 0.4);
+          if (c + 1 < n && qr.isDark(r, c + 1) && !finder(r, c + 1)) ctx.fillRect(px + cell / 2, py, cell, cell);
+          if (r + 1 < n && qr.isDark(r + 1, c) && !finder(r + 1, c)) ctx.fillRect(px, py + cell / 2, cell, cell);
         } else {
           ctx.fillRect(px, py, cell, cell);
         }
@@ -1088,6 +1093,75 @@
       ctx.fillStyle = ink;
       roundRect(ctx, px + cell * 2, py + cell * 2, cell * 3, cell * 3, radius * 0.5);
     }
+  }
+
+  /* Fonts for the QR text: the menu's own by default (its font choice, or the design's), or any
+     pairing from core/fonts.json. Loaded from Google Fonts before drawing. */
+  const SYSTEM_FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+  let qrFontList = null;
+  const themeCss = {};
+  const loadedCss = {};
+
+  async function qrFontOptions() {
+    if (!qrFontList) qrFontList = await getJSON(new URL('core/fonts.json', ROOT)).catch(() => []);
+    return qrFontList;
+  }
+
+  // The weight to draw with: 700 if the font has it, else its closest one (many display fonts have only 400).
+  function fontWeight(css, family) {
+    const m = css && css.match(new RegExp(`family=${family.replace(/ /g, '\\+')}(?::([^&]*))?(?:&|$)`));
+    if (!m) return 700;
+    if (!m[1]) return 400;
+    const weights = [];
+    for (const part of m[1].slice(m[1].indexOf('@') + 1).split(';')) {
+      const [a, b] = part.split(',').pop().split('..').map(Number);
+      if (b ? a <= 700 && b >= 700 : a === 700) return 700;
+      weights.push(a, b || a);
+    }
+    return weights.sort((x, y) => Math.abs(x - 700) - Math.abs(y - 700))[0] || 400;
+  }
+
+  // { label, family, weight, css } for a choice ('' = the menu's font).
+  async function qrFontFor(choice) {
+    const fonts = await qrFontOptions();
+    const system = { label: t('qrFontSystem'), family: SYSTEM_FONT, weight: 700 };
+    const named = (name, css) => ({ label: name, family: `'${name}', ${SYSTEM_FONT}`, weight: fontWeight(css, name), css });
+    if (choice === 'system') return system;
+    const pick = fonts.find(f => f.id === (choice || settings.font));
+    if (pick) {
+      const name = (pick.head.match(/'([^']+)'/) || [])[1];
+      return name ? named(name, pick.css) : system;
+    }
+    // The design's own font: its display font, else its heading font, else its body font.
+    if (!(settings.theme in themeCss)) {
+      themeCss[settings.theme] = await fetch(new URL(`themes/${settings.theme}/theme.css`, ROOT))
+        .then(r => (r.ok ? r.text() : '')).catch(() => '');
+    }
+    const text = themeCss[settings.theme];
+    const css = (text.match(/@import url\('([^']+)'\)/) || [])[1];
+    for (const v of ['display', 'head', 'body']) {
+      const name = (text.match(new RegExp(`--font-${v}:\\s*'([^']+)'`)) || [])[1];
+      if (name) return named(name, css);
+    }
+    return system;
+  }
+
+  function loadFont(font, sample) {
+    if (!font.css) return Promise.resolve();
+    if (!loadedCss[font.css]) {
+      loadedCss[font.css] = new Promise(resolve => {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = font.css;
+        link.onload = link.onerror = resolve;
+        document.head.appendChild(link);
+      });
+    }
+    // Wait for the letters we draw (at most 4 s; then the canvas uses the fallback font).
+    return Promise.race([
+      loadedCss[font.css].then(() => document.fonts.load(`${font.weight} 64px ${font.family}`, sample)).catch(() => {}),
+      new Promise(resolve => setTimeout(resolve, 4000)),
+    ]);
   }
 
   function loadImage(src) {
@@ -1120,6 +1194,7 @@
     $('#qr-local').hidden = store.kind !== 'local';
     $('#qr-styles').innerHTML = Object.entries(QR_STYLES).map(([id, key]) =>
       `<button type="button" data-qr-style="${id}" class="${id === qrPrefs.style ? 'active' : ''}" aria-pressed="${id === qrPrefs.style}">${t(key)}</button>`).join('');
+    $('#qr-card').checked = qrPrefs.card;
     $('#qr-colors').innerHTML = [['menu', 'qrColorsMenu'], ['black', 'qrColorsBlack']].map(([id, key]) =>
       `<button type="button" data-qr-colors="${id}" class="${id === qrPrefs.colors ? 'active' : ''}" aria-pressed="${id === qrPrefs.colors}">${t(key)}</button>`).join('');
     $('#qr-logo').checked = qrPrefs.logo && !!settings.logo;
@@ -1130,9 +1205,26 @@
     $('#qr-caption').hidden = !qrPrefs.captionOn;
     $('#qr-caption').value = qrPrefs.caption || t('qrCaptionDefault');
 
+    const fonts = await qrFontOptions();
+    const menuFont = await qrFontFor('');
+    if (run !== qrRendering) return;
+    const fontIds = ['', ...fonts.map(f => f.id), 'system'];
+    if (!fontIds.includes(qrPrefs.font)) qrPrefs.font = '';
+    $('#qr-font').innerHTML = fontIds.map(id => {
+      const label = id === '' ? t('qrFontMenu', { name: menuFont.label })
+        : id === 'system' ? t('qrFontSystem') : localized(fonts.find(f => f.id === id), 'name', lang);
+      return `<option value="${esc(id)}"${id === qrPrefs.font ? ' selected' : ''}>${esc(label)}</option>`;
+    }).join('');
+
+    const name = qrPrefs.name ? (settings.name || '').trim() : '';
+    const caption = qrPrefs.captionOn ? $('#qr-caption').value.trim() : '';
+    const textFont = qrPrefs.font ? await qrFontFor(qrPrefs.font) : menuFont;
     let make;
     try { make = await loadQrLibrary(); } catch (err) { return toast(err.message, 'error'); }
-    const logo = qrPrefs.logo && settings.logo ? await loadImage(imgSrc(settings.logo)).catch(() => null) : null;
+    const [logo] = await Promise.all([
+      qrPrefs.logo && settings.logo ? loadImage(imgSrc(settings.logo)).catch(() => null) : null,
+      name || caption ? loadFont(textFont, name + caption) : null,
+    ]);
     if (run !== qrRendering) return;   // a newer redraw has started
 
     const qr = make(0, 'H');            // highest error correction: still scans with a logo on top
@@ -1141,23 +1233,41 @@
 
     const { ink, frame, frameText } = qrColors();
     const style = qrPrefs.style;
-    const name = qrPrefs.name ? (settings.name || '').trim() : '';
-    const caption = qrPrefs.captionOn ? $('#qr-caption').value.trim() : '';
     // Table card: coloured bands on top (name) and bottom (caption) with the code on plain white
     // between them, so the colour never sits right next to the code (scanners need clean edges).
-    const card = style === 'frame';
-    const W = 1000, pad = card ? 70 : 30, qrSize = W - pad * 2;
-    const font = (weight, px) => `${weight} ${px}px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
+    const card = qrPrefs.card;
+    const W = 1000, pad = card ? 40 : 30, qrSize = W - pad * 2;
+    const n = qr.getModuleCount();
+    const cell = Math.floor(qrSize / (n + 8));
+    const margin = Math.round((qrSize - cell * n) / 2);    // white quiet zone around the code
+    const font = px => `${textFont.weight} ${px}px ${textFont.family}`;
+    const NAME = 64, NAME_LINE = 78, CAPTION = 80;
 
     const canvas = $('#qr-canvas');
     const ctx = canvas.getContext('2d');
-    ctx.font = font(700, 64);
+    ctx.font = font(NAME);
     const nameLines = name ? fitLines(ctx, name, W - 120) : [];
-    const head = card ? (nameLines.length ? 50 + nameLines.length * 78 + 30 : 44) : pad + nameLines.length * 78 + (nameLines.length ? 30 : 0);
-    const top = card ? head + 30 : head;
-    const foot = card ? (caption ? 130 : 44) : (caption ? 110 : pad);
+    const nameHeight = nameLines.length ? (nameLines.length - 1) * NAME_LINE + NAME : 0;
+
+    // Without the card the text sits 2 modules below the code, halfway into the white margin; with the
+    // card it sits in the bands and the margin stays white in full.
+    let qrTop, height, nameTop, captionBase;
+    if (card) {
+      const head = nameLines.length ? 44 + nameHeight + 30 : 40;
+      const foot = caption ? Math.round(CAPTION * 1.7) : 40;
+      qrTop = head;
+      height = head + qrSize + foot;
+      nameTop = 44;
+      captionBase = head + qrSize + foot / 2 + CAPTION * 0.34;
+    } else {
+      const gap = cell * 2;
+      qrTop = nameLines.length ? pad + nameHeight + gap - margin : pad;
+      captionBase = qrTop + margin + cell * n + gap + CAPTION * 0.74;
+      height = Math.max(qrTop + qrSize, caption ? captionBase + CAPTION * 0.26 + pad : 0);
+      nameTop = pad;
+    }
     canvas.width = W;
-    canvas.height = top + qrSize + (card ? 30 : 0) + foot;
+    canvas.height = Math.round(height);
 
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -1165,21 +1275,13 @@
       ctx.fillStyle = frame;
       roundRect(ctx, 0, 0, canvas.width, canvas.height, 56);
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(12, head, W - 24, canvas.height - head - foot);
+      ctx.fillRect(12, qrTop, W - 24, qrSize);
     }
-    const textColor = card ? frameText : ink;
-
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'alphabetic';
-    ctx.fillStyle = textColor;
-    ctx.font = font(700, 64);
-    nameLines.forEach((line, i) => ctx.fillText(line, W / 2, (card ? 50 : pad) + 58 + i * 78));
-
-    drawQr(ctx, qr, pad, top, qrSize, card ? 'rounded' : style, ink);
+    drawQr(ctx, qr, pad, qrTop, qrSize, style, ink);
 
     // Logo on a white rounded square in the middle (about a fifth of the code's width).
     if (logo) {
-      const box = qrSize * 0.22, bx = pad + (qrSize - box) / 2, by = top + (qrSize - box) / 2;
+      const box = qrSize * 0.22, bx = pad + (qrSize - box) / 2, by = qrTop + (qrSize - box) / 2;
       ctx.fillStyle = '#ffffff';
       roundRect(ctx, bx, by, box, box, box * 0.2);
       const inner = box * 0.8, scale = Math.min(inner / logo.width, inner / logo.height);
@@ -1187,10 +1289,15 @@
       ctx.drawImage(logo, bx + (box - lw) / 2, by + (box - lh) / 2, lw, lh);
     }
 
+    // Text last, so the white square of the code never covers it.
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = card ? frameText : ink;
+    ctx.font = font(NAME);
+    nameLines.forEach((line, i) => ctx.fillText(line, W / 2, nameTop + NAME * 0.8 + i * NAME_LINE));
     if (caption) {
-      ctx.fillStyle = textColor;
-      ctx.font = font(600, 52);
-      ctx.fillText(caption, W / 2, canvas.height - foot / 2 + 18, W - 120);
+      ctx.font = font(CAPTION);
+      ctx.fillText(caption, W / 2, captionBase, W - 100);
     }
   }
 
@@ -1201,12 +1308,21 @@
     const c = e.target.closest('[data-qr-colors]');
     if (s) { qrPrefs.style = s.dataset.qrStyle; saveQrPrefs(); }
     if (c) { qrPrefs.colors = c.dataset.qrColors; saveQrPrefs(); }
+    const step = e.target.closest('#qr-font-prev, #qr-font-next');
+    if (step) {
+      const ids = [...$('#qr-font').options].map(o => o.value);
+      const d = step.id === 'qr-font-next' ? 1 : -1;
+      qrPrefs.font = ids[(ids.indexOf(qrPrefs.font) + d + ids.length) % ids.length];
+      saveQrPrefs();
+    }
   });
   $('#tab-qr').addEventListener('change', e => {
     const id = e.target.id;
     if (id === 'qr-logo') qrPrefs.logo = e.target.checked;
     else if (id === 'qr-name') qrPrefs.name = e.target.checked;
     else if (id === 'qr-caption-on') qrPrefs.captionOn = e.target.checked;
+    else if (id === 'qr-card') qrPrefs.card = e.target.checked;
+    else if (id === 'qr-font') qrPrefs.font = e.target.value;
     else return;
     saveQrPrefs();
   });
