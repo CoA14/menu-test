@@ -1,3 +1,50 @@
 {
-  "categories": []
+  "categories": [
+    {
+      "id": "c-p3ijkoz5",
+      "name": "Pice",
+      "nameEn": "Drink",
+      "description": "",
+      "descriptionEn": "",
+      "items": [
+        {
+          "id": "i-q7pol79u",
+          "name": "Pivo",
+          "nameEn": "Beer",
+          "description": "",
+          "descriptionEn": "",
+          "price": 500,
+          "size": "0.33 l",
+          "image": "",
+          "tags": [
+            "popular"
+          ],
+          "available": true
+        }
+      ]
+    },
+    {
+      "id": "c-po9kpptx",
+      "name": "Hrana",
+      "nameEn": "Food",
+      "description": "",
+      "descriptionEn": "",
+      "items": [
+        {
+          "id": "i-rsvrx15t",
+          "name": "Meso",
+          "nameEn": "Meet",
+          "description": "",
+          "descriptionEn": "",
+          "price": 800,
+          "size": "250 g",
+          "image": "",
+          "tags": [
+            "spicy"
+          ],
+          "available": true
+        }
+      ]
+    }
+  ]
 }
