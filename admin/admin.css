@@ -237,10 +237,9 @@ button.lang-switch { font: inherit; background: transparent; color: inherit; cur
   padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--card);
 }
 .sched-row .dash { color: var(--muted); }
-.time-pick { display: flex; align-items: center; gap: 4px; min-width: 0; }
-.time-pick select { flex: 1; min-width: 0; padding-inline: 8px; text-align: center; }
+.sched-row input[type="time"] { padding-inline: 10px; }
 .sched-foot { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: .92rem; }
-.sched-row.is-closed .time-pick { opacity: .35; }
+.sched-row.is-closed input[type="time"] { opacity: .35; }
 
 /* Address: map button and status */
 .map-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }

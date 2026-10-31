@@ -683,22 +683,6 @@
 
   /* ---------- opening hours ---------- */
 
-  // 24-hour time as two dropdowns (hours 00–23, minutes in 5-minute steps). The phone's own time
-  // picker would follow its 12/24-hour setting and could show AM/PM.
-  const pad = n => String(n).padStart(2, '0');
-  function timePicker(i, key, value, label, disabled) {
-    const [h, m] = (value || '00:00').split(':');
-    const minutes = Array.from({ length: 12 }, (_, k) => pad(k * 5));
-    if (!minutes.includes(m)) { minutes.push(m); minutes.sort(); }   // keep an odd time like 07:07
-    const options = (list, sel) => list.map(v => `<option${v === sel ? ' selected' : ''}>${v}</option>`).join('');
-    const attrs = part => `data-sched="${i}" data-key="${key}" data-part="${part}" ${disabled ? 'disabled' : ''}`;
-    return `<span class="time-pick" role="group" aria-label="${esc(label)}">
-        <select ${attrs('h')} aria-label="${esc(label)}">${options(Array.from({ length: 24 }, (_, k) => pad(k)), h)}</select>
-        <span>:</span>
-        <select ${attrs('m')} aria-label="${esc(label)}">${options(minutes, m)}</select>
-      </span>`;
-  }
-
   function renderSchedule() {
     const names = DAYS[lang].names;
     const dayOptions = sel => names.map((n, d) => `<option value="${d}"${d === sel ? ' selected' : ''}>${n}</option>`).join('');
@@ -707,9 +691,9 @@
         <select data-sched="${i}" data-key="from" aria-label="${esc(t('dayFrom'))}">${dayOptions(r.from)}</select>
         <span class="dash">–</span>
         <select data-sched="${i}" data-key="to" aria-label="${esc(t('dayTo'))}">${dayOptions(r.to)}</select>
-        ${timePicker(i, 'open', r.open, t('openAt'), r.closed)}
+        <input type="time" data-sched="${i}" data-key="open" value="${esc(r.open)}" aria-label="${esc(t('openAt'))}" ${r.closed ? 'disabled' : ''}>
         <span class="dash">–</span>
-        ${timePicker(i, 'close', r.close, t('closeAt'), r.closed)}
+        <input type="time" data-sched="${i}" data-key="close" value="${esc(r.close)}" aria-label="${esc(t('closeAt'))}" ${r.closed ? 'disabled' : ''}>
         <div class="sched-foot">
           <label class="check"><input type="checkbox" data-sched="${i}" data-key="closed" ${r.closed ? 'checked' : ''}> ${esc(t('closedDay'))}</label>
           <button class="link-btn" type="button" data-sched-remove="${i}">${esc(t('removeRow'))}</button>
@@ -744,11 +728,8 @@
     if (key === 'closed') {
       row.closed = field.checked;
       renderSchedule();
-    } else if (field.dataset.part) {
-      const [h, m] = (row[key] || '00:00').split(':');
-      row[key] = field.dataset.part === 'h' ? `${field.value}:${m}` : `${h}:${field.value}`;
     } else {
-      row[key] = Number(field.value);
+      row[key] = key === 'from' || key === 'to' ? Number(field.value) : field.value;
     }
   }
 
