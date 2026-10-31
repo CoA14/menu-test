@@ -93,20 +93,48 @@
   if (!bilingual) lang = 'sr';
 
   root.dataset.theme = themeId;
-  root.dataset.layout = theme.layout || 'list';
+  // Item style: how dishes are shown (list with photo beside, grid of photo cards, or text only).
+  // Chosen like the layout: ?items= in the address, then the café's choice, then the design's default.
+  const ITEM_STYLES = ['list', 'cards', 'text'];
+  root.dataset.layout = [new URLSearchParams(location.search).get('items'), settings.itemStyle, theme.layout]
+    .find(s => ITEM_STYLES.includes(s)) || 'list';
   // ?layout= in the address wins (the design gallery uses it), then the café's choice, then the
   // design's own default.
-  const LAYOUTS = ['scroll', 'tabs', 'tiles', 'accordion'];
+  const LAYOUTS = ['scroll', 'tabs', 'bottom', 'tiles', 'accordion'];
   const layout = [new URLSearchParams(location.search).get('layout'), settings.layout, theme.nav]
     .find(l => LAYOUTS.includes(l)) || 'scroll';
   root.dataset.nav = layout;
+  // Colour scheme: ?palette= in the address, then the café's choice, then the design's own colours.
+  // A scheme only sets a few colour variables; every tint in the design is derived from them.
+  const query = new URLSearchParams(location.search);
+  const palette = (theme.palettes || []).find(pal => pal.id === (query.get('palette') || settings.palette));
+  if (palette) {
+    Object.entries(palette.vars || {}).forEach(([name, value]) => root.style.setProperty(name, value));
+    if (palette.scheme) root.style.colorScheme = palette.scheme;
+  }
   if (settings.accent) root.style.setProperty('--accent', settings.accent);
-  if (theme.themeColor) document.querySelector('meta[name="theme-color"]').content = theme.themeColor;
+  const themeColor = (palette && palette.themeColor) || theme.themeColor;
+  if (themeColor) document.querySelector('meta[name="theme-color"]').content = themeColor;
+
+  // Font pairing: ?font=, then the café's choice; without one the design keeps its own fonts.
+  const fontId = query.get('font') || settings.font;
+  if (fontId) {
+    const fonts = await getJSON(`core/fonts.json${VERSION}`).catch(() => []);
+    const font = fonts.find(f => f.id === fontId);
+    if (font) {
+      await loadCss(font.css);
+      root.style.setProperty('--font-head', font.head);
+      root.style.setProperty('--font-body', font.body);
+      root.style.setProperty('--font-display', font.head);
+      root.style.setProperty('font-synthesis-weight', 'none');   // no fake bold for one-weight fonts
+    }
+  }
 
   const categories = (menu.categories || []).filter(c => (c.items || []).length);
   const itemById = new Map();
   categories.forEach(c => c.items.forEach(i => itemById.set(i.id, i)));
-  const tabs = layout === 'tabs';
+  // Tabs and bottom bar both show one section at a time; only where the buttons sit differs.
+  const tabs = layout === 'tabs' || layout === 'bottom';
 
   // "Preporučujemo" strip: available items marked Popular or New, when the café turned it on.
   const featured = settings.featured
@@ -374,8 +402,9 @@
   function openTab(id) {
     sections.forEach(s => s.classList.toggle('active', s.dataset.cat === id));
     setActive(id);
-    const nav = app.querySelector('.catnav');
-    if (nav.getBoundingClientRect().top <= 0) window.scrollTo({ top: nav.offsetTop, behavior: 'smooth' });
+    // Bring the start of the newly opened section into view.
+    const top = layout === 'bottom' ? app.querySelector('.menu').offsetTop : app.querySelector('.catnav').offsetTop;
+    if (window.scrollY > top) window.scrollTo({ top, behavior: 'smooth' });
   }
 
   function toggleSection(id) {

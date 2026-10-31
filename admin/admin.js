@@ -273,6 +273,7 @@
       renderStatus();
       fillSettingsForm();
       renderAll();
+      if (!$('#tab-qr').hidden) renderQr();
     }
   }
 
@@ -408,8 +409,8 @@
 
   $$('.tab').forEach(tab => tab.addEventListener('click', () => {
     $$('.tab').forEach(t => t.classList.toggle('active', t === tab));
-    $('#tab-menu').hidden = tab.dataset.tab !== 'menu';
-    $('#tab-settings').hidden = tab.dataset.tab !== 'settings';
+    ['menu', 'settings', 'qr'].forEach(id => { $(`#tab-${id}`).hidden = tab.dataset.tab !== id; });
+    if (tab.dataset.tab === 'qr') renderQr();
     window.scrollTo(0, 0);
   }));
 
@@ -982,6 +983,247 @@
     writeStorage(TOKEN_KEY, null);
     location.reload();
   });
+
+  /* ---------- QR code (qrcode-generator, loaded on first use) ---------- */
+
+  const QR_KEY = 'dm-qr';
+  const QR_STYLES = { square: 'qrSquare', rounded: 'qrRounded', dots: 'qrDots', frame: 'qrFrame' };
+  let qrReady = null;
+  const qrPrefs = { style: 'rounded', colors: 'menu', logo: true, name: false, captionOn: true, caption: '', ...readStorage(QR_KEY) };
+
+  function loadQrLibrary() {
+    if (!qrReady) {
+      qrReady = new Promise((resolve, reject) => {
+        const js = document.createElement('script');
+        js.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js';
+        js.onload = () => resolve(window.qrcode);
+        js.onerror = () => { qrReady = null; js.remove(); reject(new Error(t('qrFailed'))); };
+        document.head.appendChild(js);
+      });
+    }
+    return qrReady;
+  }
+
+  // Contrast between two #rrggbb colours (WCAG formula).
+  function contrast(a, b) {
+    const lum = hex => {
+      const h = hex.replace('#', '');
+      const full = h.length === 3 ? [...h].map(c => c + c).join('') : h.slice(0, 6);
+      const [r, g, bl] = [0, 2, 4].map(i => parseInt(full.slice(i, i + 2), 16) / 255)
+        .map(c => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+      return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
+    };
+    const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p);
+    return (x + 0.05) / (y + 0.05);
+  }
+
+  // Colours from the menu: the brand colour or the design's colour scheme. The QR dots always get
+  // a colour dark enough to scan reliably on white; otherwise near-black.
+  function qrColors() {
+    const theme = themes.find(th => th.id === settings.theme) || {};
+    const palette = (theme.palettes || []).find(p => p.id === (settings.palette || 'original')) || (theme.palettes || [])[0];
+    const swatch = palette ? palette.swatch : [];
+    const hex = c => typeof c === 'string' && /^#[0-9a-f]{3,8}$/i.test(c);
+    const candidates = [settings.accent, swatch[1], swatch[0]].filter(hex);
+    if (qrPrefs.colors === 'black' || !candidates.length) return { ink: '#111111', frame: '#111111', frameText: '#ffffff' };
+    const ink = candidates.find(c => contrast(c, '#ffffff') >= 4.5) || '#1a1a1a';
+    const frame = candidates[0];
+    return { ink, frame, frameText: contrast(frame, '#ffffff') >= 3 ? '#ffffff' : '#1a1a1a' };
+  }
+
+  // Centres of the alignment squares per QR version (from the QR standard), up to version 10.
+  const ALIGNMENT = {
+    2: [6, 18], 3: [6, 22], 4: [6, 26], 5: [6, 30], 6: [6, 34],
+    7: [6, 22, 38], 8: [6, 24, 42], 9: [6, 26, 46], 10: [6, 28, 50],
+  };
+
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.roundRect ? ctx.roundRect(x, y, w, h, r) : ctx.rect(x, y, w, h);
+    ctx.fill();
+  }
+
+  // Draws the QR modules into a square of `size` px at (x, y), including the white quiet zone.
+  function drawQr(ctx, qr, x, y, size, style, ink) {
+    const n = qr.getModuleCount();
+    // Whole-pixel squares (4 modules of quiet zone on each side): crisp edges scan and print best.
+    const cell = Math.floor(size / (n + 8));
+    const ox = x + Math.round((size - cell * n) / 2), oy = y + Math.round((size - cell * n) / 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(x, y, size, size);
+    ctx.fillStyle = ink;
+    const finder = (r, c) => (r < 7 && c < 7) || (r < 7 && c >= n - 7) || (r >= n - 7 && c < 7);
+    // The small alignment squares (5×5) also stay solid in the dots style, or scanners lose them.
+    const align = [];
+    const pos = ALIGNMENT[(n - 17) / 4] || [];
+    for (const r of pos) for (const c of pos) if (!finder(r, c)) align.push([r - 2, c - 2]);
+    const inAlign = (r, c) => align.some(([ar, ac]) => r >= ar && r < ar + 5 && c >= ac && c < ac + 5);
+    for (let r = 0; r < n; r++) {
+      for (let c = 0; c < n; c++) {
+        if (!qr.isDark(r, c) || finder(r, c)) continue;
+        if (style === 'dots' && inAlign(r, c)) {
+          ctx.fillRect(ox + c * cell, oy + r * cell, cell, cell);
+          continue;
+        }
+        const px = ox + c * cell, py = oy + r * cell;
+        if (style === 'dots') {
+          ctx.beginPath();
+          ctx.arc(px + cell / 2, py + cell / 2, cell * 0.43, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (style === 'rounded' || style === 'frame') {
+          roundRect(ctx, px + cell * 0.04, py + cell * 0.04, cell * 0.92, cell * 0.92, cell * 0.32);
+        } else {
+          ctx.fillRect(px, py, cell, cell);
+        }
+      }
+    }
+    // The three corner squares, drawn whole so they stay crisp (scanners look for them first).
+    const radius = style === 'square' ? 0 : cell * 1.6;
+    for (const [r, c] of [[0, 0], [0, n - 7], [n - 7, 0]]) {
+      const px = ox + c * cell, py = oy + r * cell;
+      ctx.fillStyle = ink;
+      roundRect(ctx, px, py, cell * 7, cell * 7, radius);
+      ctx.fillStyle = '#ffffff';
+      roundRect(ctx, px + cell, py + cell, cell * 5, cell * 5, radius * 0.7);
+      ctx.fillStyle = ink;
+      roundRect(ctx, px + cell * 2, py + cell * 2, cell * 3, cell * 3, radius * 0.5);
+    }
+  }
+
+  function loadImage(src) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = src;
+    });
+  }
+
+  // Wraps text into lines that fit the width (for long café names).
+  function fitLines(ctx, text, maxWidth) {
+    const words = text.split(/\s+/);
+    const out = [];
+    let line = '';
+    for (const w of words) {
+      const next = line ? `${line} ${w}` : w;
+      if (ctx.measureText(next).width > maxWidth && line) { out.push(line); line = w; } else line = next;
+    }
+    if (line) out.push(line);
+    return out.slice(0, 2);
+  }
+
+  let qrRendering = 0;
+  async function renderQr() {
+    const run = ++qrRendering;
+    const url = ROOT.href;
+    $('#qr-url').textContent = t('qrUrl', { url });
+    $('#qr-local').hidden = store.kind !== 'local';
+    $('#qr-styles').innerHTML = Object.entries(QR_STYLES).map(([id, key]) =>
+      `<button type="button" data-qr-style="${id}" class="${id === qrPrefs.style ? 'active' : ''}" aria-pressed="${id === qrPrefs.style}">${t(key)}</button>`).join('');
+    $('#qr-colors').innerHTML = [['menu', 'qrColorsMenu'], ['black', 'qrColorsBlack']].map(([id, key]) =>
+      `<button type="button" data-qr-colors="${id}" class="${id === qrPrefs.colors ? 'active' : ''}" aria-pressed="${id === qrPrefs.colors}">${t(key)}</button>`).join('');
+    $('#qr-logo').checked = qrPrefs.logo && !!settings.logo;
+    $('#qr-logo').disabled = !settings.logo;
+    $('#qr-nologo').hidden = !!settings.logo;
+    $('#qr-name').checked = qrPrefs.name;
+    $('#qr-caption-on').checked = qrPrefs.captionOn;
+    $('#qr-caption').hidden = !qrPrefs.captionOn;
+    $('#qr-caption').value = qrPrefs.caption || t('qrCaptionDefault');
+
+    let make;
+    try { make = await loadQrLibrary(); } catch (err) { return toast(err.message, 'error'); }
+    const logo = qrPrefs.logo && settings.logo ? await loadImage(imgSrc(settings.logo)).catch(() => null) : null;
+    if (run !== qrRendering) return;   // a newer redraw has started
+
+    const qr = make(0, 'H');            // highest error correction: still scans with a logo on top
+    qr.addData(url);
+    qr.make();
+
+    const { ink, frame, frameText } = qrColors();
+    const style = qrPrefs.style;
+    const name = qrPrefs.name ? (settings.name || '').trim() : '';
+    const caption = qrPrefs.captionOn ? $('#qr-caption').value.trim() : '';
+    // Table card: coloured bands on top (name) and bottom (caption) with the code on plain white
+    // between them, so the colour never sits right next to the code (scanners need clean edges).
+    const card = style === 'frame';
+    const W = 1000, pad = card ? 70 : 30, qrSize = W - pad * 2;
+    const font = (weight, px) => `${weight} ${px}px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
+
+    const canvas = $('#qr-canvas');
+    const ctx = canvas.getContext('2d');
+    ctx.font = font(700, 64);
+    const nameLines = name ? fitLines(ctx, name, W - 120) : [];
+    const head = card ? (nameLines.length ? 50 + nameLines.length * 78 + 30 : 44) : pad + nameLines.length * 78 + (nameLines.length ? 30 : 0);
+    const top = card ? head + 30 : head;
+    const foot = card ? (caption ? 130 : 44) : (caption ? 110 : pad);
+    canvas.width = W;
+    canvas.height = top + qrSize + (card ? 30 : 0) + foot;
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    if (card) {
+      ctx.fillStyle = frame;
+      roundRect(ctx, 0, 0, canvas.width, canvas.height, 56);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(12, head, W - 24, canvas.height - head - foot);
+    }
+    const textColor = card ? frameText : ink;
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = textColor;
+    ctx.font = font(700, 64);
+    nameLines.forEach((line, i) => ctx.fillText(line, W / 2, (card ? 50 : pad) + 58 + i * 78));
+
+    drawQr(ctx, qr, pad, top, qrSize, card ? 'rounded' : style, ink);
+
+    // Logo on a white rounded square in the middle (about a fifth of the code's width).
+    if (logo) {
+      const box = qrSize * 0.22, bx = pad + (qrSize - box) / 2, by = top + (qrSize - box) / 2;
+      ctx.fillStyle = '#ffffff';
+      roundRect(ctx, bx, by, box, box, box * 0.2);
+      const inner = box * 0.8, scale = Math.min(inner / logo.width, inner / logo.height);
+      const lw = logo.width * scale, lh = logo.height * scale;
+      ctx.drawImage(logo, bx + (box - lw) / 2, by + (box - lh) / 2, lw, lh);
+    }
+
+    if (caption) {
+      ctx.fillStyle = textColor;
+      ctx.font = font(600, 52);
+      ctx.fillText(caption, W / 2, canvas.height - foot / 2 + 18, W - 120);
+    }
+  }
+
+  function saveQrPrefs() { writeStorage(QR_KEY, qrPrefs); renderQr(); }
+
+  $('#tab-qr').addEventListener('click', e => {
+    const s = e.target.closest('[data-qr-style]');
+    const c = e.target.closest('[data-qr-colors]');
+    if (s) { qrPrefs.style = s.dataset.qrStyle; saveQrPrefs(); }
+    if (c) { qrPrefs.colors = c.dataset.qrColors; saveQrPrefs(); }
+  });
+  $('#tab-qr').addEventListener('change', e => {
+    const id = e.target.id;
+    if (id === 'qr-logo') qrPrefs.logo = e.target.checked;
+    else if (id === 'qr-name') qrPrefs.name = e.target.checked;
+    else if (id === 'qr-caption-on') qrPrefs.captionOn = e.target.checked;
+    else return;
+    saveQrPrefs();
+  });
+  $('#qr-caption').addEventListener('input', e => { qrPrefs.caption = e.target.value; writeStorage(QR_KEY, qrPrefs); renderQr(); });
+
+  $('#qr-download').addEventListener('click', () => {
+    $('#qr-canvas').toBlob(blob => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `qr-${slug(settings.name || 'meni')}.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    }, 'image/png');
+  });
+
 
   /* ---------- save & publish ---------- */
 

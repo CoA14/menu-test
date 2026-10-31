@@ -6,5 +6,112 @@
   "venue": "restaurant",
   "layout": "text",
   "nav": "tiles",
-  "themeColor": "#1d3a2f"
+  "themeColor": "#1d3a2f",
+  "palettes": [
+    {
+      "id": "original",
+      "name": "Zelena i mesing",
+      "nameEn": "Green & brass",
+      "vars": {},
+      "swatch": [
+        "#1d3a2f",
+        "#c8a46a"
+      ]
+    },
+    {
+      "id": "burgundy",
+      "name": "Bordo i zlato",
+      "nameEn": "Burgundy & gold",
+      "scheme": "dark",
+      "vars": {
+        "--bg": "#3a1a22",
+        "--surface": "#48222b",
+        "--text": "#f5e9e1",
+        "--muted": "#c7b0ad",
+        "--accent": "#d9b26f",
+        "--accent-ink": "#3a1a22"
+      },
+      "swatch": [
+        "#3a1a22",
+        "#d9b26f"
+      ],
+      "themeColor": "#3a1a22"
+    },
+    {
+      "id": "navy",
+      "name": "Teget",
+      "nameEn": "Navy",
+      "scheme": "dark",
+      "vars": {
+        "--bg": "#16233a",
+        "--surface": "#1d2d48",
+        "--text": "#eef0f5",
+        "--muted": "#aab3c5",
+        "--accent": "#d6b77a",
+        "--accent-ink": "#16233a"
+      },
+      "swatch": [
+        "#16233a",
+        "#d6b77a"
+      ],
+      "themeColor": "#16233a"
+    },
+    {
+      "id": "plum",
+      "name": "Šljiva",
+      "nameEn": "Plum",
+      "scheme": "dark",
+      "vars": {
+        "--bg": "#2b1d33",
+        "--surface": "#36263f",
+        "--text": "#f2e9f2",
+        "--muted": "#bfaec3",
+        "--accent": "#d8b16f",
+        "--accent-ink": "#2b1d33"
+      },
+      "swatch": [
+        "#2b1d33",
+        "#d8b16f"
+      ],
+      "themeColor": "#2b1d33"
+    },
+    {
+      "id": "black",
+      "name": "Crna",
+      "nameEn": "Black",
+      "scheme": "dark",
+      "vars": {
+        "--bg": "#141414",
+        "--surface": "#1f1f1f",
+        "--text": "#f1ece2",
+        "--muted": "#a8a196",
+        "--accent": "#c8a46a",
+        "--accent-ink": "#141414"
+      },
+      "swatch": [
+        "#141414",
+        "#c8a46a"
+      ],
+      "themeColor": "#141414"
+    },
+    {
+      "id": "cream",
+      "name": "Krem",
+      "nameEn": "Cream",
+      "scheme": "light",
+      "vars": {
+        "--bg": "#f4eedf",
+        "--surface": "#ebe3cf",
+        "--text": "#1d3a2f",
+        "--muted": "#5e6e64",
+        "--accent": "#1d3a2f",
+        "--accent-ink": "#f4eedf"
+      },
+      "swatch": [
+        "#f4eedf",
+        "#1d3a2f"
+      ],
+      "themeColor": "#f4eedf"
+    }
+  ]
 }

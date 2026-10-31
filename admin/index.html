@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="robots" content="noindex">
   <title>Uređivanje menija</title>
-  <link rel="stylesheet" href="admin.css?v=202610311605">
+  <link rel="stylesheet" href="admin.css?v=202610311834">
 </head>
 <body>
   <!-- Text marked with data-i18n* is filled in from strings.js in the chosen language. -->
@@ -57,6 +57,7 @@
     <nav class="tabs" role="tablist">
       <button class="tab active" data-tab="menu" role="tab" data-i18n="tabMenu"></button>
       <button class="tab" data-tab="settings" role="tab" data-i18n="tabInfo"></button>
+      <button class="tab" data-tab="qr" role="tab" data-i18n="tabQr"></button>
     </nav>
 
     <main class="content">
@@ -166,6 +167,33 @@
             <button id="disconnect" class="btn ghost sm" type="button" hidden data-i18n="disconnect"></button>
           </div>
         </form>
+      </section>
+
+      <!-- QR code for the tables: drawn in the browser, downloaded as a PNG to print -->
+      <section id="tab-qr" hidden>
+        <div class="settings">
+          <div class="panel">
+            <h2 data-i18n="qrTitle"></h2>
+            <p class="hint" data-i18n="qrLead"></p>
+            <div class="qr-preview"><canvas id="qr-canvas" width="1000" height="1000"></canvas></div>
+            <p id="qr-url" class="hint qr-url"></p>
+            <p id="qr-local" class="error" hidden data-i18n="qrLocalWarn"></p>
+            <div class="field">
+              <span data-i18n="qrStyle"></span>
+              <div class="qr-options" id="qr-styles"></div>
+            </div>
+            <div class="field">
+              <span data-i18n="qrColors"></span>
+              <div class="qr-options" id="qr-colors"></div>
+            </div>
+            <label class="check"><input type="checkbox" id="qr-logo"> <span data-i18n="qrLogo"></span></label>
+            <small id="qr-nologo" class="hint" hidden data-i18n="qrNoLogo"></small>
+            <label class="check"><input type="checkbox" id="qr-name"> <span data-i18n="qrName"></span></label>
+            <label class="check"><input type="checkbox" id="qr-caption-on"> <span data-i18n="qrCaptionOn"></span></label>
+            <input id="qr-caption" maxlength="40">
+            <button id="qr-download" class="btn primary block" type="button" data-i18n="qrDownload"></button>
+          </div>
+        </div>
       </section>
     </main>
 
@@ -291,8 +319,8 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script src="../core/common.js?v=202610311605"></script>
-  <script src="strings.js?v=202610311605"></script>
-  <script src="admin.js?v=202610311605"></script>
+  <script src="../core/common.js?v=202610311834"></script>
+  <script src="strings.js?v=202610311834"></script>
+  <script src="admin.js?v=202610311834"></script>
 </body>
 </html>

@@ -212,3 +212,12 @@ h1, h2, h3 { font-family: var(--font-head); }
 }
 .tile-bar .lang-switch { position: static; }
 [data-nav="tiles"][data-view="section"] .cat { padding-top: 22px; }
+
+/* ---------- Layout: bottom bar (like tabs, with the section buttons at the bottom, thumb-friendly) ---------- */
+[data-nav="bottom"] .cat:not(.active) { display: none; }
+[data-nav="bottom"] .catnav {
+  position: fixed; top: auto; bottom: 0; left: 0; right: 0; z-index: 15;
+  border-top: 1px solid var(--line); box-shadow: 0 -6px 18px rgba(0, 0, 0, .1);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+[data-nav="bottom"] #app { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }

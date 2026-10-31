@@ -5,13 +5,13 @@
   --surface: #244536;
   --text: #f3ecdc;
   --muted: #b9c2b2;
-  --line: rgba(200, 164, 106, .32);
+  --line: color-mix(in srgb, var(--accent) 32%, transparent);
   --accent: #c8a46a;
   --accent-ink: #1d3a2f;
   --font-head: 'EB Garamond', Georgia, serif;
   --font-body: 'Karla', system-ui, sans-serif;
   --radius: 4px;
-  --nav-bg: rgba(29, 58, 47, .96);
+  --nav-bg: color-mix(in srgb, var(--bg) 96%, transparent);
   --chip-text: var(--muted);
   --chip-active-bg: transparent;
   --chip-active-text: var(--accent);
