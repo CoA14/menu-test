@@ -359,6 +359,9 @@
     settings = JSON.parse(settingsText);
     menu.categories = menu.categories || [];
     menu.categories.forEach(c => { c.items = c.items || []; });
+    // Fields added in later versions, so older settings files don't count as "changed" on open.
+    ['instagram', 'facebook', 'tiktok', 'website'].forEach(k => { settings[k] = settings[k] || ''; });
+    settings.links = Array.isArray(settings.links) ? settings.links : [];
     savedMenu = JSON.stringify(menu);
     savedSettings = JSON.stringify(settings);
 
@@ -637,8 +640,34 @@
     $('#accent-color').value = settings.accent || '#b5651d';
     $('#accent-color').disabled = !settings.accent;
     renderLogo();
+    renderLinks();
     renderPriceExample();
   }
+
+  // The owner's own links (name + link), e.g. Google reviews or a delivery app.
+  function renderLinks() {
+    $('#links-list').innerHTML = settings.links.map((l, i) => `
+      <div class="link-row">
+        <input data-link="${i}" data-key="label" value="${esc(l.label)}" placeholder="${esc(t('linkNamePlaceholder'))}" aria-label="${esc(t('linkName'))}" maxlength="40">
+        <input data-link="${i}" data-key="url" value="${esc(l.url)}" type="url" inputmode="url" placeholder="https://…" aria-label="${esc(t('linkUrl'))}" autocapitalize="off" spellcheck="false">
+        <button class="icon-btn" type="button" data-remove="${i}" aria-label="${esc(t('removeLink'))}">×</button>
+      </div>`).join('');
+  }
+
+  $('#link-add').addEventListener('click', () => {
+    settings.links.push({ label: '', url: '' });
+    renderLinks();
+    renderAll();
+    $(`#links-list [data-link="${settings.links.length - 1}"]`).focus();
+  });
+
+  $('#links-list').addEventListener('click', e => {
+    const btn = e.target.closest('[data-remove]');
+    if (!btn) return;
+    settings.links.splice(Number(btn.dataset.remove), 1);
+    renderLinks();
+    renderAll();
+  });
 
   function renderLogo() {
     $('#logo-preview').innerHTML = settings.logo ? `<img src="${esc(imgSrc(settings.logo))}" alt="">` : `<span>${t('none')}</span>`;
@@ -651,7 +680,9 @@
 
   settingsForm.addEventListener('input', e => {
     const field = e.target;
-    if (field.name) {
+    if (field.dataset.link) {
+      settings.links[Number(field.dataset.link)][field.dataset.key] = field.value;
+    } else if (field.name) {
       settings[field.name] = field.name === 'priceDecimals' ? Number(field.value) : field.value;
     } else if (field.id === 'accent-on' || field.id === 'accent-color') {
       $('#accent-color').disabled = !$('#accent-on').checked;
@@ -710,6 +741,9 @@
     button.disabled = true;
     button.textContent = t('saving');
     try {
+      // Rows the owner added but left completely empty aren't worth saving.
+      settings.links = settings.links.filter(l => l.label.trim() || l.url.trim());
+      renderLinks();
       const before = imageRefs(JSON.parse(savedMenu), JSON.parse(savedSettings));
       const after = imageRefs(menu, settings);
       const writes = [];
@@ -718,7 +752,7 @@
       if (JSON.stringify(settings) !== savedSettings) writes.push({ path: SETTINGS_PATH, data: JSON.stringify(settings, null, 2) + '\n' });
       const deletes = [...before].filter(p => !after.has(p) && p.startsWith(IMAGE_DIR));
 
-      await store.publish({ writes, deletes }, 'Update menu from admin');
+      if (writes.length || deletes.length) await store.publish({ writes, deletes }, 'Update menu from admin');
 
       pendingImages.clear();
       savedMenu = JSON.stringify(menu);

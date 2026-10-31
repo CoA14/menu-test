@@ -218,3 +218,9 @@ button.lang-switch { font: inherit; background: transparent; color: inherit; cur
   padding: 6px 9px; border-radius: 999px; color: var(--muted);
 }
 .lang-switch span.active { background: var(--soft); color: var(--text); }
+
+/* Own links: name + link + remove, one row each */
+.links-list { display: grid; gap: 8px; }
+.links-list:empty { display: none; }
+.link-row { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr) auto; gap: 8px; align-items: center; }
+@media (max-width: 420px) { .link-row { grid-template-columns: minmax(0, 1fr) auto; } .link-row input[data-key="url"] { grid-column: 1; } .link-row .icon-btn { grid-row: 1 / span 2; grid-column: 2; } }

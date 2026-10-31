@@ -118,6 +118,9 @@ h1, h2, h3 { font-family: var(--font-head); }
 .info-grid dt { font-size: .75rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 4px; }
 .info-grid dd { margin: 0; }
 .info-grid a { text-decoration: none; border-bottom: 1px solid var(--line); }
+/* Social and other links as small pills, in each theme's own colors */
+.info-links { display: inline-flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
+.info-grid .info-links a { display: inline-block; padding: 5px 12px; border: 1px solid var(--line); border-radius: 999px; font-size: .9rem; }
 .info-note { margin: 24px 0 0; font-size: .85rem; color: var(--muted); }
 
 /* Item details sheet */

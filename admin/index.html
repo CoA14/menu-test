@@ -126,9 +126,22 @@
               <label class="field"><span data-i18n="wifiName"></span><input name="wifiName"></label>
               <label class="field"><span data-i18n="wifiPassword"></span><input name="wifiPassword"></label>
             </div>
-            <label class="field"><span>Instagram</span><input name="instagram" data-i18n-ph="instagramPlaceholder" autocapitalize="off"></label>
             <label class="field"><span data-i18n="note"></span><textarea name="note" rows="2" data-i18n-ph="notePlaceholder"></textarea></label>
             <label class="field en-only"><span data-i18n="noteEn"></span><textarea name="noteEn" rows="2" lang="en" placeholder="e.g. All prices include VAT."></textarea></label>
+          </div>
+
+          <div class="panel">
+            <h2 data-i18n="secLinks"></h2>
+            <p class="hint" data-i18n="linksHint"></p>
+            <label class="field"><span>Instagram</span><input name="instagram" type="url" inputmode="url" placeholder="instagram.com/vaskafic" autocapitalize="off" spellcheck="false"></label>
+            <label class="field"><span>Facebook</span><input name="facebook" type="url" inputmode="url" placeholder="facebook.com/vaskafic" autocapitalize="off" spellcheck="false"></label>
+            <label class="field"><span>TikTok</span><input name="tiktok" type="url" inputmode="url" placeholder="tiktok.com/@vaskafic" autocapitalize="off" spellcheck="false"></label>
+            <label class="field"><span data-i18n="website"></span><input name="website" type="url" inputmode="url" placeholder="www.vaskafic.rs" autocapitalize="off" spellcheck="false"></label>
+            <div class="field">
+              <span data-i18n="otherLinks"></span>
+              <div id="links-list" class="links-list"></div>
+              <button id="link-add" class="btn ghost sm" type="button" data-i18n="addLink"></button>
+            </div>
           </div>
 
           <div class="panel">

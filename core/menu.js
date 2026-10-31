@@ -2,7 +2,7 @@
    Every theme uses this same markup; themes only change styling and a few layout flags. */
 (async function () {
   'use strict';
-  const { LANGS, TAGS, translator, localized, savedLang, saveLang, esc, formatPrice, getJSON } = window.DM;
+  const { LANGS, TAGS, SOCIAL, translator, localized, linkUrl, savedLang, saveLang, esc, formatPrice, getJSON } = window.DM;
   const app = document.getElementById('app');
   const root = document.documentElement;
   const LANG_KEY = 'dm-lang';
@@ -21,7 +21,9 @@
       phone: 'Telefon',
       wifi: 'Wi-Fi',
       password: 'Lozinka:',
-      instagram: 'Instagram',
+      followUs: 'Pratite nas',
+      links: 'Linkovi',
+      website: 'Web sajt',
       switchLang: 'Prebaci na engleski',
     },
     en: {
@@ -37,7 +39,9 @@
       phone: 'Phone',
       wifi: 'Wi-Fi',
       password: 'Password:',
-      instagram: 'Instagram',
+      followUs: 'Follow us',
+      links: 'Links',
+      website: 'Website',
       switchLang: 'Switch to Serbian',
     },
   };
@@ -132,10 +136,14 @@
     if (s.address) rows.push([t('address'), `<a href="https://maps.google.com/?q=${encodeURIComponent(s.address)}" target="_blank" rel="noopener">${esc(s.address)}</a>`]);
     if (s.phone) rows.push([t('phone'), `<a href="tel:${esc(s.phone.replace(/[^\d+]/g, ''))}">${esc(s.phone)}</a>`]);
     if (s.wifiName) rows.push([t('wifi'), `${esc(s.wifiName)}${s.wifiPassword ? `<br><span class="muted">${t('password')}</span> ${esc(s.wifiPassword)}` : ''}`]);
-    if (s.instagram) {
-      const handle = s.instagram.replace(/^https?:\/\/(www\.)?instagram\.com\//i, '').replace(/[/@]/g, '');
-      rows.push([t('instagram'), `<a href="https://instagram.com/${esc(handle)}" target="_blank" rel="noopener">@${esc(handle)}</a>`]);
-    }
+    // Only links that were filled in (and make a valid address) are shown.
+    const linkList = list => `<span class="info-links">${list.map(([label, url]) =>
+      `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(label)}</a>`).join('')}</span>`;
+    const socials = Object.keys(SOCIAL).map(k => [SOCIAL[k].label, linkUrl(s[k], k)]).filter(([, url]) => url);
+    if (socials.length) rows.push([t('followUs'), linkList(socials)]);
+    const others = [[t('website'), linkUrl(s.website)], ...(s.links || []).map(l => [l.label || l.url, linkUrl(l.url)])]
+      .filter(([label, url]) => label && url);
+    if (others.length) rows.push([t('links'), linkList(others)]);
     if (!rows.length && !note) return '';
     return `
       <footer class="info">

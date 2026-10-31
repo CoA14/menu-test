@@ -39,6 +39,25 @@ window.DM = (function () {
     return forms.sr[2];
   }
 
+  // Social profiles can be typed as a full link, "instagram.com/name", "@name" or just "name".
+  const SOCIAL = {
+    instagram: { label: 'Instagram', base: 'https://instagram.com/' },
+    facebook:  { label: 'Facebook',  base: 'https://facebook.com/' },
+    tiktok:    { label: 'TikTok',    base: 'https://www.tiktok.com/@' },
+  };
+
+  // Turns what the owner typed into a safe https link, or '' if it can't be one.
+  function linkUrl(value, kind) {
+    const v = String(value || '').trim();
+    if (!v) return '';
+    let url;
+    if (/^https?:\/\//i.test(v)) url = v;
+    else if (/^[^\s/@]+\.[^\s]+$/.test(v)) url = 'https://' + v;          // instagram.com/name, www.cafe.rs
+    else if (SOCIAL[kind] && /^@?[\w.-]+$/.test(v)) url = SOCIAL[kind].base + v.replace(/^@/, '');
+    else return '';
+    try { return /^https?:$/.test(new URL(url).protocol) ? url : ''; } catch { return ''; }
+  }
+
   function savedLang(key) {
     try { const v = localStorage.getItem(key); return LANGS.includes(v) ? v : null; } catch { return null; }
   }
@@ -73,5 +92,5 @@ window.DM = (function () {
     return res.json();
   }
 
-  return { LANGS, TAGS, translator, localized, plural, savedLang, saveLang, esc, formatPrice, getJSON };
+  return { LANGS, TAGS, SOCIAL, translator, localized, plural, linkUrl, savedLang, saveLang, esc, formatPrice, getJSON };
 })();
