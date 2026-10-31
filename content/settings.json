@@ -5,7 +5,7 @@
   "logo": "content/images/logo-xi1qb.webp",
   "theme": "bistro",
   "accent": "",
-  "english": true,
+  "english": false,
   "currency": "RSD",
   "currencyPosition": "after",
   "priceDecimals": 0,
