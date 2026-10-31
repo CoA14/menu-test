@@ -41,16 +41,16 @@ h1, h2, h3 { font-family: var(--font-head); }
 /* Hero */
 .hero { position: relative; padding: 44px 0 26px; text-align: center; }
 
-/* SR / EN switch in the top corner. Uses the hero's own text color so it fits every theme. */
+/* SR / EN switch in the top corner: one button, a tap flips the language.
+   Uses the hero's own text color so it fits every theme. */
 .lang-switch {
   position: absolute; top: 12px; right: 12px; z-index: 2; display: flex; gap: 2px; padding: 3px;
   border: 1px solid color-mix(in srgb, currentColor 30%, transparent); border-radius: 999px;
-  font-family: var(--font-body);
+  font: inherit; font-family: var(--font-body); background: transparent; color: inherit; cursor: pointer;
 }
 .lang-btn {
-  font: inherit; font-size: .75rem; font-weight: 700; letter-spacing: .04em; line-height: 1;
-  padding: 6px 9px; border: 0; border-radius: 999px; cursor: pointer;
-  background: transparent; color: inherit; opacity: .65;
+  font-size: .75rem; font-weight: 700; letter-spacing: .04em; line-height: 1;
+  padding: 6px 9px; border-radius: 999px; opacity: .65;
 }
 .lang-btn.active { opacity: 1; background: color-mix(in srgb, currentColor 16%, transparent); }
 .hero-logo { width: 96px; height: 96px; object-fit: contain; margin: 0 auto 14px; }

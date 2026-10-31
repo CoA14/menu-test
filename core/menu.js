@@ -22,7 +22,7 @@
       wifi: 'Wi-Fi',
       password: 'Lozinka:',
       instagram: 'Instagram',
-      language: 'Jezik',
+      switchLang: 'Prebaci na engleski',
     },
     en: {
       title: 'Menu',
@@ -38,7 +38,7 @@
       wifi: 'Wi-Fi',
       password: 'Password:',
       instagram: 'Instagram',
-      language: 'Language',
+      switchLang: 'Switch to Serbian',
     },
   };
 
@@ -115,7 +115,7 @@
           </div>
           ${desc ? `<p class="item-desc">${esc(desc)}</p>` : ''}
           <div class="item-meta">
-            ${item.size ? `<span class="item-size">${esc(item.size)}</span>` : ''}
+            ${item.size ? `<span class="item-size">${esc(sizeText(item.size))}</span>` : ''}
             ${soldOut ? `<span class="soldout-badge">${t('soldOut')}</span>` : ''}
             ${tagsHtml(item.tags)}
           </div>
@@ -146,13 +146,18 @@
       </footer>`;
   }
 
+  // One button showing both languages; a tap flips to the other one.
   function langSwitchHtml() {
     if (!bilingual) return '';
+    const next = LANGS[(LANGS.indexOf(lang) + 1) % LANGS.length];
     return `
-      <div class="lang-switch" role="group" aria-label="${t('language')}">
-        ${LANGS.map(l => `<button type="button" class="lang-btn${l === lang ? ' active' : ''}" data-lang="${l}" lang="${l}" aria-pressed="${l === lang}">${l.toUpperCase()}</button>`).join('')}
-      </div>`;
+      <button type="button" class="lang-switch" data-lang="${next}" aria-label="${t('switchLang')}">
+        ${LANGS.map(l => `<span class="lang-btn${l === lang ? ' active' : ''}" lang="${l}">${l.toUpperCase()}</span>`).join('')}
+      </button>`;
   }
+
+  // Sizes are typed in Serbian ("6 kom"); English shows "6 pcs".
+  const sizeText = size => (lang === 'en' ? size.replace(/\bkom\b/, 'pcs') : size);
 
   /* ---------- page ---------- */
 
@@ -256,7 +261,7 @@
           <h3 class="sheet-name">${esc(L(item, 'name'))}</h3>
           <div class="sheet-sub">
             ${price ? `<span class="item-price">${esc(price)}</span>` : ''}
-            ${item.size ? `<span class="item-size">${esc(item.size)}</span>` : ''}
+            ${item.size ? `<span class="item-size">${esc(sizeText(item.size))}</span>` : ''}
             ${item.available === false ? `<span class="soldout-badge">${t('soldOut')}</span>` : ''}
           </div>
           ${desc ? `<p class="sheet-desc">${esc(desc)}</p>` : ''}
@@ -273,7 +278,7 @@
       if (e.target === sheet || e.target.closest('.sheet-close')) sheet.close();
       return;
     }
-    const langBtn = e.target.closest('.lang-btn');
+    const langBtn = e.target.closest('.lang-switch');
     if (langBtn) return switchLang(langBtn.dataset.lang);
     const chip = e.target.closest('.chip');
     if (chip && tabs) return openTab(chip.dataset.cat);

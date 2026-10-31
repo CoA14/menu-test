@@ -16,7 +16,7 @@
     <form id="connect-form" class="panel connect">
       <div class="connect-head">
         <h1 data-i18n="connectTitle">Uređivanje menija</h1>
-        <div class="lang-switch" role="group" data-i18n-aria="language"></div>
+        <button type="button" class="lang-switch" data-i18n-aria="switchLang"></button>
       </div>
       <p class="lead" data-i18n="connectLead"></p>
       <div class="field-row">
@@ -50,7 +50,7 @@
         <span id="mode-badge" class="badge"></span>
       </div>
       <div class="btn-row nowrap">
-        <div class="lang-switch" role="group" data-i18n-aria="language"></div>
+        <button type="button" class="lang-switch" data-i18n-aria="switchLang"></button>
         <a id="view-link" class="btn ghost sm" href="../" target="_blank" rel="noopener" data-i18n="viewMenu"></a>
       </div>
     </header>
@@ -172,8 +172,24 @@
           <small class="hint" data-i18n="inEnglishHint"></small>
         </fieldset>
         <div class="field-row">
-          <label class="field"><span data-i18n="price"></span><input id="f-price" inputmode="decimal" placeholder="0"></label>
-          <label class="field"><span data-i18n="size"></span><input id="f-size" data-i18n-ph="sizePlaceholder"></label>
+          <label class="field"><span data-i18n="price"></span>
+            <span class="suffix-input"><input id="f-price" inputmode="decimal" placeholder="0"><span id="f-currency" class="suffix"></span></span>
+          </label>
+          <div class="field">
+            <label for="f-size" data-i18n="size"></label>
+            <div class="unit-row">
+              <input id="f-size" inputmode="decimal" data-i18n-ph="sizePlaceholder">
+              <select id="f-unit" data-i18n-aria="unit">
+                <option value="">—</option>
+                <option value="ml">ml</option>
+                <option value="l">l</option>
+                <option value="g">g</option>
+                <option value="kg">kg</option>
+                <option value="kom" data-i18n="unitPcs"></option>
+                <option value="cm">cm</option>
+              </select>
+            </div>
+          </div>
         </div>
         <label class="field"><span data-i18n="section"></span><select id="f-cat"></select></label>
         <div class="field"><span data-i18n="labels"></span><div id="f-tags" class="tag-picker"></div></div>

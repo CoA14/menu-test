@@ -4,6 +4,7 @@ window.ADMIN_STRINGS = {
   sr: {
     pageTitle: 'Uređivanje menija',
     language: 'Jezik',
+    switchLang: 'Prebaci na engleski',
     close: 'Zatvori',
 
     // connect screen
@@ -57,7 +58,9 @@ window.ADMIN_STRINGS = {
     descriptionEn: 'Opis na engleskom',
     price: 'Cena',
     size: 'Količina / veličina',
-    sizePlaceholder: 'npr. 0,3 l, 250 g',
+    sizePlaceholder: 'npr. 250',
+    unit: 'Jedinica mere',
+    unitPcs: 'kom',
     section: 'Kategorija',
     labels: 'Oznake',
     availableLong: 'Dostupno (isključite da piše „Rasprodato”)',
@@ -146,6 +149,7 @@ window.ADMIN_STRINGS = {
   en: {
     pageTitle: 'Menu admin',
     language: 'Language',
+    switchLang: 'Switch to Serbian',
     close: 'Close',
 
     connectTitle: 'Menu admin',
@@ -195,7 +199,9 @@ window.ADMIN_STRINGS = {
     descriptionEn: 'Description in English',
     price: 'Price',
     size: 'Size / amount',
-    sizePlaceholder: 'e.g. 0.3 l, 250 g',
+    sizePlaceholder: 'e.g. 250',
+    unit: 'Unit',
+    unitPcs: 'pcs',
     section: 'Section',
     labels: 'Labels',
     availableLong: 'Available (untick to show “Sold out”)',

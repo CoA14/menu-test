@@ -119,8 +119,9 @@
   }
 
   // Accepts what people type in Serbia and elsewhere: 250, 2,50, 2.50, 1.250, 1.250,50, 1,250.50.
+  // Anything that isn't a digit, dot or comma is dropped, so "250 RSD" is also fine.
   function parsePrice(text) {
-    let s = text.replace(/\s/g, '');
+    let s = text.replace(/[^\d.,]/g, '');
     if (s === '') return null;
     if (s.includes(',') && s.includes('.')) {
       const decimal = s.lastIndexOf(',') > s.lastIndexOf('.') ? ',' : '.';
@@ -260,7 +261,7 @@
     $$('[data-i18n-ph]').forEach(el => { el.placeholder = t(el.dataset.i18nPh); });
     $$('[data-i18n-aria]').forEach(el => { el.setAttribute('aria-label', t(el.dataset.i18nAria)); });
     $$('.lang-switch').forEach(el => {
-      el.innerHTML = LANGS.map(l => `<button type="button" data-lang="${l}" lang="${l}" class="${l === lang ? 'active' : ''}" aria-pressed="${l === lang}">${l.toUpperCase()}</button>`).join('');
+      el.innerHTML = LANGS.map(l => `<span lang="${l}" class="${l === lang ? 'active' : ''}">${l.toUpperCase()}</span>`).join('');
     });
     if (menu) {
       renderStatus();
@@ -269,10 +270,10 @@
     }
   }
 
+  // One tap flips between the two languages.
   document.addEventListener('click', e => {
-    const btn = e.target.closest('.lang-switch [data-lang]');
-    if (!btn || btn.dataset.lang === lang) return;
-    lang = btn.dataset.lang;
+    if (!e.target.closest('.lang-switch')) return;
+    lang = LANGS[(LANGS.indexOf(lang) + 1) % LANGS.length];
     saveLang(LANG_KEY, lang);
     applyLanguage();
   });
@@ -539,7 +540,11 @@
     $('#f-name-en').value = d.nameEn || '';
     $('#f-desc-en').value = d.descriptionEn || '';
     $('#f-price').value = d.price == null || d.price === '' ? '' : String(d.price);
-    $('#f-size').value = d.size || '';
+    $('#f-currency').textContent = settings.currency || '';
+    // Size is stored as one text ("250 g"); the form splits it into number and unit.
+    const size = /^(.*?)\s*(ml|l|g|kg|kom|cm)$/i.exec(d.size || '');
+    $('#f-size').value = size && size[1] ? size[1] : d.size || '';
+    $('#f-unit').value = size && size[1] ? size[2].toLowerCase() : '';
     $('#f-cat').innerHTML = menu.categories.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
     $('#f-cat').value = cat.id;
     $('#f-tags').innerHTML = Object.entries(TAGS).map(([key, tag]) => `
@@ -582,7 +587,8 @@
     d.nameEn = $('#f-name-en').value.trim();
     d.descriptionEn = $('#f-desc-en').value.trim();
     d.price = price;
-    d.size = $('#f-size').value.trim();
+    const amount = $('#f-size').value.trim();
+    d.size = amount && $('#f-unit').value ? `${amount} ${$('#f-unit').value}` : amount;
     d.tags = $$('#f-tags input:checked').map(i => i.value);
     d.available = $('#f-available').checked;
 
