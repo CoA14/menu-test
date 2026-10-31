@@ -10,7 +10,7 @@
   "currencyPosition": "after",
   "priceDecimals": 0,
   "decimalSeparator": ",",
-  "address": "Tamo iza coska",
+  "address": "Mladena Stojanovića 24",
   "phone": "0601234567",
   "hours": "Od juče do sutra",
   "hoursEn": "From yesterday to tomorrow ",
@@ -27,5 +27,25 @@
   "facebook": "",
   "tiktok": "",
   "website": "",
-  "links": []
+  "links": [],
+  "schedule": [
+    {
+      "from": 0,
+      "to": 4,
+      "open": "08:00",
+      "close": "22:00",
+      "closed": false
+    },
+    {
+      "from": 5,
+      "to": 6,
+      "open": "16:00",
+      "close": "19:00",
+      "closed": false
+    }
+  ],
+  "location": {
+    "lat": 45.3049384,
+    "lng": 19.2628284
+  }
 }
