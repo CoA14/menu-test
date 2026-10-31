@@ -370,7 +370,6 @@
     settings.links = Array.isArray(settings.links) ? settings.links : [];
     settings.schedule = Array.isArray(settings.schedule) ? settings.schedule : [];
     settings.location = settings.location || null;
-    settings.layout = settings.layout || '';
     settings.featured = !!settings.featured;
     savedMenu = JSON.stringify(menu);
     savedSettings = JSON.stringify(settings);
@@ -672,7 +671,6 @@
     $('#english-on').checked = settings.english !== false;
     $('#featured-on').checked = !!settings.featured;
     $('#theme-select').value = settings.theme || (themes[0] && themes[0].id) || '';
-    renderLayoutDefault();
     $('#accent-on').checked = !!settings.accent;
     $('#accent-color').value = settings.accent || '#b5651d';
     $('#accent-color').disabled = !settings.accent;
@@ -682,13 +680,6 @@
     renderMapStatus();
     $$('[data-link-kind]', settingsForm).forEach(checkLink);
     renderPriceExample();
-  }
-
-  // "Design default (Tiles)": the layout the chosen design uses when the café hasn't picked one.
-  function renderLayoutDefault() {
-    const theme = themes.find(th => th.id === settings.theme) || themes[0] || {};
-    const key = { tabs: 'layoutTabs', tiles: 'layoutTiles', accordion: 'layoutAccordion' }[theme.nav] || 'layoutScroll';
-    $('#layout-default').textContent = t('layoutDefault', { name: t(key).split(':')[0] });
   }
 
   /* ---------- links ---------- */
@@ -963,7 +954,6 @@
     } else if (field.id === 'featured-on') {
       settings.featured = field.checked;
     }
-    if (field.name === 'theme') renderLayoutDefault();
     renderPriceExample();
     renderAll();
   });
