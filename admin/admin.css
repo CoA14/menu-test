@@ -133,14 +133,15 @@ h1, h2 { margin: 0; letter-spacing: -.01em; }
 .field small, .hint { font-size: .82rem; color: var(--muted); margin: 0; }
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 @media (max-width: 420px) { .field-row { grid-template-columns: 1fr; } }
-input:not([type="checkbox"]):not([type="color"]):not([type="file"]), select, textarea {
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]), select, textarea {
   width: 100%; padding: 11px 12px; border: 1px solid var(--line); border-radius: 10px;
   background: var(--bg); color: var(--text); font: inherit; font-size: 16px;
 }
 textarea { resize: vertical; }
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: transparent; }
 .check { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
-.check input { width: 18px; height: 18px; accent-color: var(--accent); }
+.check input { flex: none; width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
+input[type="range"] { width: 100%; accent-color: var(--accent); }
 .check.big { padding: 12px; border-radius: 10px; background: var(--soft); }
 .color-row { display: flex; align-items: center; gap: 14px; }
 input[type="color"] { width: 48px; height: 36px; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: none; }
@@ -210,6 +211,23 @@ html:has(dialog[open]) { overflow: hidden; }
 .unit-row { display: flex; gap: 8px; }
 .unit-row input { flex: 1; min-width: 0; }
 .unit-row select { width: 6.5em; flex: none; }
+
+/* Photo cropping and logo dialogs */
+.crop-dialog { width: min(560px, calc(100% - 24px)); }
+.crop-body { padding: 12px 16px 4px; display: grid; gap: 10px; }
+.crop-canvas { display: block; width: 100%; border-radius: 10px; background: var(--soft); touch-action: none; cursor: grab; }
+.crop-canvas:active { cursor: grabbing; }
+.crop-tools { display: flex; align-items: center; gap: 8px; }
+.crop-tools input[type="range"] { flex: 1; min-width: 0; }
+.logo-verdict { margin: 0; padding: 10px 12px; border-radius: 10px; font-size: .92rem; }
+.logo-verdict.good { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.logo-verdict.warn { background: color-mix(in srgb, #e0a100 18%, transparent); }
+.logo-previews { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.logo-previews figure { margin: 0; display: grid; gap: 4px; text-align: center; font-size: .82rem; color: var(--muted); }
+.logo-previews canvas { width: 100%; height: auto; border-radius: 10px; border: 1px solid var(--line); }
+.logo-modes { display: grid; gap: 10px; }
+.logo-modes[hidden], .logo-remove-opts[hidden] { display: none; }
+.logo-remove-opts { display: grid; gap: 8px; margin: -2px 0 4px 28px; }
 
 /* Help tab: questions that open on tap */
 .guide details { border-top: 1px solid var(--line); }

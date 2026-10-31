@@ -80,32 +80,6 @@
     return new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0)));
   }
 
-  // Shrinks a photo in the browser so a 5 MB phone picture becomes ~150 KB.
-  async function processImage(file, maxSize, keepTransparency) {
-    const url = URL.createObjectURL(file);
-    try {
-      const img = await new Promise((resolve, reject) => {
-        const i = new Image();
-        i.onload = () => resolve(i);
-        i.onerror = () => reject(new Error(t('badImage')));
-        i.src = url;
-      });
-      const scale = Math.min(1, maxSize / Math.max(img.naturalWidth, img.naturalHeight));
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.round(img.naturalWidth * scale);
-      canvas.height = Math.round(img.naturalHeight * scale);
-      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-      const encode = (type, quality) => new Promise(r => canvas.toBlob(r, type, quality));
-      let blob = await encode('image/webp', 0.82);
-      if (!blob || blob.type !== 'image/webp') {
-        blob = keepTransparency ? await encode('image/png') : await encode('image/jpeg', 0.85);
-      }
-      return blob;
-    } finally {
-      URL.revokeObjectURL(url);
-    }
-  }
-
   function addPendingImage(blob, baseName) {
     const ext = { 'image/webp': 'webp', 'image/jpeg': 'jpg', 'image/png': 'png' }[blob.type] || 'jpg';
     const path = `${IMAGE_DIR}${slug(baseName)}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
@@ -328,6 +302,7 @@
   });
 
   async function init() {
+    ImageEditor.init(t);
     applyLanguage();
     themes = await loadThemes();
     if (await isLocalServer()) {
@@ -534,7 +509,10 @@
     e.target.value = '';
     if (!file) return;
     try {
-      editingCat.image = addPendingImage(await processImage(file, 1200, false), $('#s-name').value || 'section');
+      // Section photos show as square tiles.
+      const blob = await ImageEditor.crop(file, { aspect: 1, guide: false, size: 1000 });
+      if (!blob) return;
+      editingCat.image = addPendingImage(blob, $('#s-name').value || 'section');
       renderCatPhoto();
     } catch (err) {
       toast(err.message, 'error');
@@ -600,7 +578,9 @@
     e.target.value = '';
     if (!file) return;
     try {
-      const blob = await processImage(file, 1200, false);
+      // 4:3 like the cards and the opened item; the list shows its middle square.
+      const blob = await ImageEditor.crop(file, { aspect: 4 / 3, guide: true, size: 1200 });
+      if (!blob) return;
       editing.draft.image = addPendingImage(blob, $('#f-name').value || 'photo');
       renderPhoto();
     } catch (err) {
@@ -964,7 +944,9 @@
     e.target.value = '';
     if (!file) return;
     try {
-      settings.logo = addPendingImage(await processImage(file, 600, true), 'logo');
+      const blob = await ImageEditor.logo(file, { menuBg: menuColors().bg, qrInk: qrColors().ink });
+      if (!blob) return;
+      settings.logo = addPendingImage(blob, 'logo');
       renderLogo();
       renderAll();
     } catch (err) {
@@ -1021,12 +1003,18 @@
 
   // Colours from the menu: the brand colour or the design's colour scheme. The QR dots always get
   // a colour dark enough to scan reliably on white; otherwise near-black.
-  function qrColors() {
+  // The menu's background and main colour, from its design's colour scheme.
+  function menuColors() {
     const theme = themes.find(th => th.id === settings.theme) || {};
     const palette = (theme.palettes || []).find(p => p.id === (settings.palette || 'original')) || (theme.palettes || [])[0];
     const swatch = palette ? palette.swatch : [];
     const hex = c => typeof c === 'string' && /^#[0-9a-f]{3,8}$/i.test(c);
-    const candidates = [settings.accent, swatch[1], swatch[0]].filter(hex);
+    return { bg: hex(swatch[0]) ? swatch[0] : '#ffffff', swatch: swatch.filter(hex), accent: hex(settings.accent) ? settings.accent : '' };
+  }
+
+  function qrColors() {
+    const { swatch, accent } = menuColors();
+    const candidates = [accent, swatch[1], swatch[0]].filter(Boolean);
     if (qrPrefs.colors === 'black' || !candidates.length) return { ink: '#111111', frame: '#111111', frameText: '#ffffff' };
     const ink = candidates.find(c => contrast(c, '#ffffff') >= 4.5) || '#1a1a1a';
     const frame = candidates[0];
@@ -1289,6 +1277,13 @@ ${dots.length ? `<g fill="#000000">${dots.join('')}</g>\n` : ''}${image}</svg>
     ]);
   }
 
+  // A see-through logo that is almost all white (made for a dark menu) would vanish on white.
+  const lightLogos = new WeakMap();
+  function lightLogo(img) {
+    if (!lightLogos.has(img)) lightLogos.set(img, ImageEditor.isLightLogo(img));
+    return lightLogos.get(img);
+  }
+
   function loadImage(src) {
     return new Promise((resolve, reject) => {
       const img = new Image();
@@ -1408,7 +1403,7 @@ ${dots.length ? `<g fill="#000000">${dots.join('')}</g>\n` : ''}${image}</svg>
     // Logo on a white rounded square in the middle (about a fifth of the code's width).
     if (logo) {
       const box = qrSize * 0.22, bx = pad + (qrSize - box) / 2, by = qrTop + (qrSize - box) / 2;
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = lightLogo(logo) ? ink : '#ffffff';
       roundRect(ctx, bx, by, box, box, box * 0.2);
       const inner = box * 0.8, scale = Math.min(inner / logo.width, inner / logo.height);
       const lw = logo.width * scale, lh = logo.height * scale;
