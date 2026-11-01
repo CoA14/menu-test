@@ -2,7 +2,7 @@
   "name": "Test Restoran",
   "tagline": "Svašta nesto",
   "taglineEn": "All around",
-  "logo": "content/images/logo-xi1qb.webp",
+  "logo": "content/images/logo-kk4f3.webp",
   "theme": "bistro",
   "layout": "scroll",
   "accent": "",
@@ -48,5 +48,6 @@
   "location": {
     "lat": 45.3049384,
     "lng": 19.2628284
-  }
+  },
+  "featured": false
 }
