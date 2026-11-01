@@ -1,8 +1,8 @@
 {
   "name": "Bistro",
   "nameEn": "Bistro",
-  "description": "Tamnozelena i mesing, kao pariski bistro. Za restorane sa vinskom kartom.",
-  "descriptionEn": "Deep green and brass, like a Paris bistro. For restaurants with a wine list.",
+  "description": "Tamnozelena i mesing, srebrno zvono za posluživanje u ramu. Za restorane sa vinskom kartom.",
+  "descriptionEn": "Deep green and brass, a serving cloche in a frame. For restaurants with a wine list.",
   "venue": "restaurant",
   "layout": "text",
   "nav": "tiles",
