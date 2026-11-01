@@ -24,7 +24,7 @@
                   ${a.image?`<img src="${w(K(a.image))}" alt="">`:`<span class="noimg">${w((a.name||"?").charAt(0))}</span>`}
                   <span class="item-text">
                     <strong>${w(a.name)}</strong>
-                    <span>${w(ge(a.price,c))||"\u2014"}${a.available===!1?` \xB7 <em>${l("soldOut")}</em>`:""}</span>
+                    <span>${w(ge(a.price,c))||"\u2014"}${a.available===!1?` \xB7 <em>${l("hiddenItem")}</em>`:""}</span>
                   </span>
                 </button>
                 <label class="switch" title="${l("available")}"><input type="checkbox" data-action="item-toggle" ${a.available!==!1?"checked":""} aria-label="${l("available")}"><span></span></label>
