@@ -20,6 +20,18 @@
             "popular"
           ],
           "available": true
+        },
+        {
+          "id": "i-dhpkry3z",
+          "name": "Sok",
+          "nameEn": "",
+          "description": "",
+          "descriptionEn": "",
+          "price": 200,
+          "size": "250 ml",
+          "image": "",
+          "tags": [],
+          "available": true
         }
       ]
     },
