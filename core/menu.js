@@ -1,509 +1,115 @@
-/* Public menu: loads the content files and the chosen theme, then renders the page.
-   The layout decides how the menu works (scroll, tabs, tiles, accordion); the theme (skin) only
-   changes how it looks, so any skin works with any layout. */
-(async function () {
-  'use strict';
-  const {
-    LANGS, TAGS, SOCIAL, translator, localized, plural, linkUrl, socialProfile, icon, scheduleLines,
-    savedLang, saveLang, esc, formatPrice, getJSON,
-  } = window.DM;
-  const app = document.getElementById('app');
-  const root = document.documentElement;
-  const LANG_KEY = 'dm-lang';
-  // Client copies load this script as menu.js?v=…; the design's CSS gets the same stamp so an
-  // update never mixes old and new files (see tools/stamp.js).
-  const VERSION = (document.currentScript && new URL(document.currentScript.src).search) || '';
-
-  const STRINGS = {
-    sr: {
-      title: 'Meni',
-      loadError: 'Nažalost, meni trenutno ne može da se učita. Pokušajte ponovo za trenutak.',
-      empty: 'Meni je u pripremi.<br>Navratite uskoro!',
-      sections: 'Kategorije menija',
-      details: 'Detalji',
-      close: 'Zatvori',
-      soldOut: 'Rasprodato',
-      hours: 'Radno vreme',
-      address: 'Adresa',
-      phone: 'Telefon',
-      wifi: 'Wi-Fi',
-      password: 'Lozinka:',
-      followUs: 'Pratite nas',
-      links: 'Linkovi',
-      switchLang: 'Prebaci na engleski',
-      back: 'Nazad',
-      recommended: 'Preporučujemo',
-    },
-    en: {
-      title: 'Menu',
-      loadError: 'Sorry, the menu could not be loaded. Please try again in a moment.',
-      empty: 'Our menu is being prepared.<br>Please check back soon!',
-      sections: 'Menu sections',
-      details: 'Item details',
-      close: 'Close',
-      soldOut: 'Sold out',
-      hours: 'Opening hours',
-      address: 'Address',
-      phone: 'Phone',
-      wifi: 'Wi-Fi',
-      password: 'Password:',
-      followUs: 'Follow us',
-      links: 'Links',
-      switchLang: 'Switch to Serbian',
-      back: 'Back',
-      recommended: 'Recommended',
-    },
-  };
-
-  // ?lang=en in the address wins, then the guest's last choice, then Serbian.
-  const requestedLang = new URLSearchParams(location.search).get('lang');
-  let lang = LANGS.includes(requestedLang) ? requestedLang : savedLang(LANG_KEY) || 'sr';
-  const t = translator(STRINGS, () => lang);
-  const L = (obj, field) => localized(obj, field, lang);
-
-  function loadCss(href) {
-    return new Promise(resolve => {
-      const link = document.createElement('link');
-      link.rel = 'stylesheet';
-      link.href = href;
-      link.onload = link.onerror = resolve;
-      document.head.appendChild(link);
-    });
-  }
-
-  // ?demo=pizzeria shows a sample menu from demo/ (used by the design gallery only).
-  const demo = (new URLSearchParams(location.search).get('demo') || '').replace(/[^a-z-]/g, '');
-  const contentDir = demo ? `demo/${demo}/` : 'content/';
-
-  let settings, menu, theme, themeId;
-  try {
-    [settings, menu] = await Promise.all([getJSON(`${contentDir}settings.json`), getJSON(`${contentDir}menu.json`)]);
-    const requested = new URLSearchParams(location.search).get('theme');
-    themeId = String(requested || settings.theme || 'classic').replace(/[^a-z0-9-]/gi, '');
-    theme = await getJSON(`themes/${themeId}/theme.json`).catch(() => ({}));
-    await loadCss(`themes/${themeId}/theme.css${VERSION}`);
-  } catch (err) {
-    app.innerHTML = `<p class="dm-error">${t('loadError')}</p>`;
-    document.body.classList.remove('dm-loading');
-    console.error(err);
-    return;
-  }
-
-  const bilingual = settings.english !== false;
-  if (!bilingual) lang = 'sr';
-
-  root.dataset.theme = themeId;
-  // Item style: how dishes are shown (list with photo beside, grid of photo cards, or text only).
-  // Chosen like the layout: ?items= in the address, then the café's choice, then the design's default.
-  const ITEM_STYLES = ['list', 'cards', 'text'];
-  root.dataset.layout = [new URLSearchParams(location.search).get('items'), settings.itemStyle, theme.layout]
-    .find(s => ITEM_STYLES.includes(s)) || 'list';
-  // ?layout= in the address wins (the design gallery uses it), then the café's choice, then the
-  // design's own default.
-  const LAYOUTS = ['scroll', 'tabs', 'bottom', 'tiles', 'accordion'];
-  const layout = [new URLSearchParams(location.search).get('layout'), settings.layout, theme.nav]
-    .find(l => LAYOUTS.includes(l)) || 'scroll';
-  root.dataset.nav = layout;
-  // Colour scheme: ?palette= in the address, then the café's choice, then the design's own colours.
-  // A scheme only sets a few colour variables; every tint in the design is derived from them.
-  const query = new URLSearchParams(location.search);
-  const palette = (theme.palettes || []).find(pal => pal.id === (query.get('palette') || settings.palette));
-  if (palette) {
-    Object.entries(palette.vars || {}).forEach(([name, value]) => root.style.setProperty(name, value));
-    if (palette.scheme) root.style.colorScheme = palette.scheme;
-  }
-  if (settings.accent) root.style.setProperty('--accent', settings.accent);
-  const themeColor = (palette && palette.themeColor) || theme.themeColor;
-  if (themeColor) document.querySelector('meta[name="theme-color"]').content = themeColor;
-
-  // Font pairing: ?font=, then the café's choice; without one the design keeps its own fonts.
-  const fontId = query.get('font') || settings.font;
-  if (fontId) {
-    const fonts = await getJSON(`core/fonts.json${VERSION}`).catch(() => []);
-    const font = fonts.find(f => f.id === fontId);
-    if (font) {
-      await loadCss(font.css);
-      root.style.setProperty('--font-head', font.head);
-      root.style.setProperty('--font-body', font.body);
-      root.style.setProperty('--font-display', font.head);
-      root.style.setProperty('font-synthesis-weight', 'none');   // no fake bold for one-weight fonts
-    }
-  }
-
-  const categories = (menu.categories || []).filter(c => (c.items || []).length);
-  const itemById = new Map();
-  categories.forEach(c => c.items.forEach(i => itemById.set(i.id, i)));
-  // Tabs and bottom bar both show one section at a time; only where the buttons sit differs.
-  const tabs = layout === 'tabs' || layout === 'bottom';
-
-  // "Preporučujemo" strip: available items marked Popular or New, when the café turned it on.
-  const featured = settings.featured
-    ? categories.flatMap(c => c.items).filter(i => i.available !== false && (i.tags || []).some(tag => tag === 'popular' || tag === 'new')).slice(0, 8)
-    : [];
-  const catImage = c => c.image || (c.items.find(i => i.image) || {}).image || '';
-  const itemCount = n => `${n} ${plural(n, lang, { sr: ['stavka', 'stavke', 'stavki'], en: ['item', 'items'] })}`;
-
-  /* ---------- markup ---------- */
-
-  function tagsHtml(tags) {
-    const known = (tags || []).filter(tag => TAGS[tag]);
-    if (!known.length) return '';
-    return `<ul class="tags">${known.map(tag =>
-      `<li class="tag tag-${tag}"><span class="tag-icon" aria-hidden="true">${TAGS[tag].icon}</span>${TAGS[tag][lang]}</li>`
-    ).join('')}</ul>`;
-  }
-
-  function itemHtml(item) {
-    const soldOut = item.available === false;
-    const price = formatPrice(item.price, settings);
-    const desc = L(item, 'description');
-    return `
-      <article class="item${item.image ? ' has-img' : ''}${soldOut ? ' soldout' : ''}" data-id="${esc(item.id)}" tabindex="0" role="button" aria-label="${esc(L(item, 'name'))}">
-        ${item.image ? `<img class="item-img" src="${esc(item.image)}" alt="" loading="lazy">` : ''}
+/*! Digital menu. All rights reserved. See LICENSE. */
+(async function(){"use strict";const{LANGS:b,TAGS:j,SOCIAL:z,translator:le,localized:re,plural:de,linkUrl:E,socialProfile:me,icon:pe,scheduleLines:he,savedLang:ue,saveLang:fe,esc:s,formatPrice:T,getJSON:w}=window.DM,d=document.getElementById("app"),p=document.documentElement,M="dm-lang",U=document.currentScript&&new URL(document.currentScript.src).search||"",ge={sr:{title:"Meni",loadError:"Na\u017Ealost, meni trenutno ne mo\u017Ee da se u\u010Dita. Poku\u0161ajte ponovo za trenutak.",empty:"Meni je u pripremi.<br>Navratite uskoro!",sections:"Kategorije menija",details:"Detalji",close:"Zatvori",soldOut:"Rasprodato",hours:"Radno vreme",address:"Adresa",phone:"Telefon",wifi:"Wi-Fi",password:"Lozinka:",followUs:"Pratite nas",links:"Linkovi",madeBy:"Digitalni meni: {name}",switchLang:"Prebaci na engleski",back:"Nazad",recommended:"Preporu\u010Dujemo"},en:{title:"Menu",loadError:"Sorry, the menu could not be loaded. Please try again in a moment.",empty:"Our menu is being prepared.<br>Please check back soon!",sections:"Menu sections",details:"Item details",close:"Close",soldOut:"Sold out",hours:"Opening hours",address:"Address",phone:"Phone",wifi:"Wi-Fi",password:"Password:",followUs:"Follow us",links:"Links",madeBy:"Digital menu by {name}",switchLang:"Switch to Serbian",back:"Back",recommended:"Recommended"}},C=new URLSearchParams(location.search).get("lang");let m=b.includes(C)?C:ue(M)||"sr";const n=le(ge,()=>m),c=(e,t)=>re(e,t,m);function A(e){return new Promise(t=>{const a=document.createElement("link");a.rel="stylesheet",a.href=e,a.onload=a.onerror=t,document.head.appendChild(a)})}const N=(new URLSearchParams(location.search).get("demo")||"").replace(/[^a-z-]/g,""),x=N?`demo/${N}/`:"content/";let i,B,v,y,H;try{[i,B,H]=await Promise.all([w(`${x}settings.json`),w(`${x}menu.json`),w(`core/brand.json${U}`).catch(()=>({}))]);const e=new URLSearchParams(location.search).get("theme");y=String(e||i.theme||"classic").replace(/[^a-z0-9-]/gi,""),v=await w(`themes/${y}/theme.json`).catch(()=>({})),await A(`themes/${y}/theme.css${U}`)}catch(e){d.innerHTML=`<p class="dm-error">${n("loadError")}</p>`,document.body.classList.remove("dm-loading"),console.error(e);return}const D=i.english!==!1;D||(m="sr"),p.dataset.theme=y;const $e=["list","cards","text"];p.dataset.layout=[new URLSearchParams(location.search).get("items"),i.itemStyle,v.layout].find(e=>$e.includes(e))||"list";const be=["scroll","tabs","bottom","tiles","accordion"],h=[new URLSearchParams(location.search).get("layout"),i.layout,v.nav].find(e=>be.includes(e))||"scroll";p.dataset.nav=h;const F=new URLSearchParams(location.search),$=(v.palettes||[]).find(e=>e.id===(F.get("palette")||i.palette));$&&(Object.entries($.vars||{}).forEach(([e,t])=>p.style.setProperty(e,t)),$.scheme&&(p.style.colorScheme=$.scheme)),i.accent&&p.style.setProperty("--accent",i.accent);const Y=$&&$.themeColor||v.themeColor;Y&&(document.querySelector('meta[name="theme-color"]').content=Y);const _=F.get("font")||i.font;if(_){const t=(await w(`core/fonts.json${U}`).catch(()=>[])).find(a=>a.id===_);t&&(await A(t.css),p.style.setProperty("--font-head",t.head),p.style.setProperty("--font-body",t.body),p.style.setProperty("--font-display",t.head),p.style.setProperty("font-synthesis-weight","none"))}const u=(B.categories||[]).filter(e=>(e.items||[]).length),G=new Map;u.forEach(e=>e.items.forEach(t=>G.set(t.id,t)));const I=h==="tabs"||h==="bottom",V=i.featured?u.flatMap(e=>e.items).filter(e=>e.available!==!1&&(e.tags||[]).some(t=>t==="popular"||t==="new")).slice(0,8):[],we=e=>e.image||(e.items.find(t=>t.image)||{}).image||"",W=e=>`${e} ${de(e,m,{sr:["stavka","stavke","stavki"],en:["item","items"]})}`;function K(e){const t=(e||[]).filter(a=>j[a]);return t.length?`<ul class="tags">${t.map(a=>`<li class="tag tag-${a}"><span class="tag-icon" aria-hidden="true">${j[a].icon}</span>${j[a][m]}</li>`).join("")}</ul>`:""}function J(e){const t=e.available===!1,a=T(e.price,i),l=c(e,"description");return`
+      <article class="item${e.image?" has-img":""}${t?" soldout":""}" data-id="${s(e.id)}" tabindex="0" role="button" aria-label="${s(c(e,"name"))}">
+        ${e.image?`<img class="item-img" src="${s(e.image)}" alt="" loading="lazy">`:""}
         <div class="item-body">
           <div class="item-head">
-            <h3 class="item-name">${esc(L(item, 'name'))}</h3>
+            <h3 class="item-name">${s(c(e,"name"))}</h3>
             <span class="leader" aria-hidden="true"></span>
-            ${price ? `<span class="item-price">${esc(price)}</span>` : ''}
+            ${a?`<span class="item-price">${s(a)}</span>`:""}
           </div>
-          ${desc ? `<p class="item-desc">${esc(desc)}</p>` : ''}
+          ${l?`<p class="item-desc">${s(l)}</p>`:""}
           <div class="item-meta">
-            ${item.size ? `<span class="item-size">${esc(sizeText(item.size))}</span>` : ''}
-            ${soldOut ? `<span class="soldout-badge">${t('soldOut')}</span>` : ''}
-            ${tagsHtml(item.tags)}
+            ${e.size?`<span class="item-size">${s(Q(e.size))}</span>`:""}
+            ${t?`<span class="soldout-badge">${n("soldOut")}</span>`:""}
+            ${K(e.tags)}
           </div>
         </div>
-      </article>`;
-  }
-
-  function infoHtml() {
-    const s = settings;
-    const note = L(s, 'note');
-    const rows = [];
-
-    // Opening hours: picked rows if there are any, otherwise older free text.
-    const sched = scheduleLines(s.schedule, lang);
-    if (sched.length) {
-      rows.push([t('hours'), `<span class="hours">${sched.map(r => `<span>${esc(r.days)}</span><span>${esc(r.times)}</span>`).join('')}</span>`]);
-    } else if (L(s, 'hours')) {
-      rows.push([t('hours'), esc(L(s, 'hours')).replace(/\n/g, '<br>')]);
-    }
-
-    // With a pin from the map, the link opens that exact spot; otherwise maps search for the address.
-    if (s.address) {
-      const where = s.location ? `${s.location.lat},${s.location.lng}` : s.address;
-      rows.push([t('address'), `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(where)}" target="_blank" rel="noopener">${esc(s.address)}</a>`]);
-    }
-    if (s.phone) rows.push([t('phone'), `<a href="tel:${esc(s.phone.replace(/[^\d+]/g, ''))}">${esc(s.phone)}</a>`]);
-    if (s.wifiName) rows.push([t('wifi'), `${esc(s.wifiName)}${s.wifiPassword ? `<br><span class="muted">${t('password')}</span> ${esc(s.wifiPassword)}` : ''}`]);
-
-    // Only links that were filled in (and make a valid address) are shown.
-    const linkList = list => `<span class="info-links">${list.map(([ic, text, url]) =>
-      `<a href="${esc(url)}" target="_blank" rel="noopener">${icon(ic)}<span>${esc(text)}</span></a>`).join('')}</span>`;
-    const socials = Object.keys(SOCIAL)
-      .map(k => [k, socialProfile(s[k], k)])
-      .filter(([, p]) => p)
-      .map(([k, p]) => [k, p.handle ? `@${p.handle}` : SOCIAL[k].label, p.url]);
-    if (socials.length) rows.push([t('followUs'), linkList(socials)]);
-    const site = linkUrl(s.website);
-    const others = [
-      ...(site ? [['website', new URL(site).hostname.replace(/^www\./, ''), site]] : []),
-      ...(s.links || []).map(l => ['link', l.label || l.url, linkUrl(l.url)]).filter(([, text, url]) => text && url),
-    ];
-    if (others.length) rows.push([t('links'), linkList(others)]);
-
-    if (!rows.length && !note) return '';
-    return `
+      </article>`}function ve(){const e=i,t=c(e,"note"),a=[],l=he(e.schedule,m);if(l.length?a.push([n("hours"),`<span class="hours">${l.map(o=>`<span>${s(o.days)}</span><span>${s(o.times)}</span>`).join("")}</span>`]):c(e,"hours")&&a.push([n("hours"),s(c(e,"hours")).replace(/\n/g,"<br>")]),e.address){const o=e.location?`${e.location.lat},${e.location.lng}`:e.address;a.push([n("address"),`<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(o)}" target="_blank" rel="noopener">${s(e.address)}</a>`])}e.phone&&a.push([n("phone"),`<a href="tel:${s(e.phone.replace(/[^\d+]/g,""))}">${s(e.phone)}</a>`]),e.wifiName&&a.push([n("wifi"),`${s(e.wifiName)}${e.wifiPassword?`<br><span class="muted">${n("password")}</span> ${s(e.wifiPassword)}`:""}`]);const r=o=>`<span class="info-links">${o.map(([f,He,Ie])=>`<a href="${s(Ie)}" target="_blank" rel="noopener">${pe(f)}<span>${s(He)}</span></a>`).join("")}</span>`,g=Object.keys(z).map(o=>[o,me(e[o],o)]).filter(([,o])=>o).map(([o,f])=>[o,f.handle?`@${f.handle}`:z[o].label,f.url]);g.length&&a.push([n("followUs"),r(g)]);const R=E(e.website),ie=[...R?[["website",new URL(R).hostname.replace(/^www\./,""),R]]:[],...(e.links||[]).map(o=>["link",o.label||o.url,E(o.url)]).filter(([,o,f])=>o&&f)];ie.length&&a.push([n("links"),r(ie)]);const ce=E(H.url),O=s(H.name||""),q=O?n("madeBy",{name:ce?`<a href="${s(ce)}" target="_blank" rel="noopener">${O}</a>`:O}):"";return!a.length&&!t&&!q?"":`
       <footer class="info">
         <div class="wrap">
-          ${rows.length ? `<dl class="info-grid">${rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>` : ''}
-          ${note ? `<p class="info-note">${esc(note)}</p>` : ''}
+          ${a.length?`<dl class="info-grid">${a.map(([o,f])=>`<div><dt>${o}</dt><dd>${f}</dd></div>`).join("")}</dl>`:""}
+          ${t?`<p class="info-note">${s(t)}</p>`:""}
+          ${q?`<p class="info-credit">${q}</p>`:""}
         </div>
-      </footer>`;
-  }
-
-  // One button showing both languages; a tap flips to the other one.
-  function langSwitchHtml() {
-    if (!bilingual) return '';
-    const next = LANGS[(LANGS.indexOf(lang) + 1) % LANGS.length];
-    return `
-      <button type="button" class="lang-switch" data-lang="${next}" aria-label="${t('switchLang')}">
-        ${LANGS.map(l => `<span class="lang-btn${l === lang ? ' active' : ''}" lang="${l}">${l.toUpperCase()}</span>`).join('')}
-      </button>`;
-  }
-
-  // Sizes are typed in Serbian ("6 kom"); English shows "6 pcs".
-  const sizeText = size => (lang === 'en' ? size.replace(/\bkom\b/, 'pcs') : size);
-
-  /* ---------- page ---------- */
-
-  function heroHtml() {
-    const tagline = L(settings, 'tagline');
-    return `
+      </footer>`}function Z(){return D?`
+      <button type="button" class="lang-switch" data-lang="${b[(b.indexOf(m)+1)%b.length]}" aria-label="${n("switchLang")}">
+        ${b.map(t=>`<span class="lang-btn${t===m?" active":""}" lang="${t}">${t.toUpperCase()}</span>`).join("")}
+      </button>`:""}const Q=e=>m==="en"?e.replace(/\bkom\b/,"pcs"):e;function ye(){const e=c(i,"tagline");return`
       <header class="hero">
-        ${langSwitchHtml()}
+        ${Z()}
         <div class="wrap">
-          ${settings.logo ? `<img class="hero-logo" src="${esc(settings.logo)}" alt="">` : ''}
-          <h1 class="hero-name">${esc(settings.name || t('title'))}</h1>
-          ${tagline ? `<p class="hero-tagline">${esc(tagline)}</p>` : ''}
+          ${i.logo?`<img class="hero-logo" src="${s(i.logo)}" alt="">`:""}
+          <h1 class="hero-name">${s(i.name||n("title"))}</h1>
+          ${e?`<p class="hero-tagline">${s(e)}</p>`:""}
         </div>
-      </header>`;
-  }
-
-  function featuredHtml() {
-    if (!featured.length) return '';
-    return `
-      <section class="featured" aria-label="${t('recommended')}">
-        <div class="wrap"><h2 class="featured-title">${t('recommended')}</h2></div>
+      </header>`}function Le(){return V.length?`
+      <section class="featured" aria-label="${n("recommended")}">
+        <div class="wrap"><h2 class="featured-title">${n("recommended")}</h2></div>
         <div class="featured-row">
-          ${featured.map(i => `
-            <button type="button" class="feat" data-id="${esc(i.id)}">
-              ${i.image ? `<img class="feat-img" src="${esc(i.image)}" alt="" loading="lazy">` : '<span class="feat-img"></span>'}
-              <span class="feat-name">${esc(L(i, 'name'))}</span>
-              <span class="feat-price">${esc(formatPrice(i.price, settings))}</span>
-            </button>`).join('')}
+          ${V.map(e=>`
+            <button type="button" class="feat" data-id="${s(e.id)}">
+              ${e.image?`<img class="feat-img" src="${s(e.image)}" alt="" loading="lazy">`:'<span class="feat-img"></span>'}
+              <span class="feat-name">${s(c(e,"name"))}</span>
+              <span class="feat-price">${s(T(e.price,i))}</span>
+            </button>`).join("")}
         </div>
-      </section>`;
-  }
-
-  function sectionHtml(c, active) {
-    return `
-      <section class="cat${active ? ' active' : ''}" id="cat-${esc(c.id)}" data-cat="${esc(c.id)}">
+      </section>`:""}function X(e,t){return`
+      <section class="cat${t?" active":""}" id="cat-${s(e.id)}" data-cat="${s(e.id)}">
         <div class="wrap">
           <header class="cat-head">
-            <h2 class="cat-name">${esc(L(c, 'name'))}</h2>
-            ${L(c, 'description') ? `<p class="cat-desc">${esc(L(c, 'description'))}</p>` : ''}
+            <h2 class="cat-name">${s(c(e,"name"))}</h2>
+            ${c(e,"description")?`<p class="cat-desc">${s(c(e,"description"))}</p>`:""}
           </header>
-          <div class="items">${c.items.map(itemHtml).join('')}</div>
+          <div class="items">${e.items.map(J).join("")}</div>
         </div>
-      </section>`;
-  }
-
-  // Scroll and tabs: section buttons on top, sections below (tabs shows one at a time).
-  function chipsLayoutHtml(active) {
-    const navTag = tabs ? 'button' : 'a';
-    return `
-      <nav class="catnav" aria-label="${t('sections')}">
+      </section>`}function Se(e){const t=I?"button":"a";return`
+      <nav class="catnav" aria-label="${n("sections")}">
         <div class="catnav-inner">
-          ${categories.map(c => `<${navTag} class="chip${c.id === active ? ' active' : ''}" data-cat="${esc(c.id)}"${navTag === 'a' ? ` href="#cat-${esc(c.id)}"` : ' type="button"'}>${esc(L(c, 'name'))}</${navTag}>`).join('')}
+          ${u.map(a=>`<${t} class="chip${a.id===e?" active":""}" data-cat="${s(a.id)}"${t==="a"?` href="#cat-${s(a.id)}"`:' type="button"'}>${s(c(a,"name"))}</${t}>`).join("")}
         </div>
       </nav>
-      <main class="menu">${categories.map(c => sectionHtml(c, c.id === active)).join('')}</main>`;
-  }
-
-  // Accordion: every section folded; opening one closes the others.
-  function accordionHtml(open) {
-    return `
+      <main class="menu">${u.map(a=>X(a,a.id===e)).join("")}</main>`}function ke(e){return`
       <main class="menu acc">
-        ${categories.map(c => `
-          <section class="cat${c.id === open ? ' open' : ''}" id="cat-${esc(c.id)}" data-cat="${esc(c.id)}">
+        ${u.map(t=>`
+          <section class="cat${t.id===e?" open":""}" id="cat-${s(t.id)}" data-cat="${s(t.id)}">
             <div class="wrap">
               <h2 class="acc-h">
-                <button type="button" class="acc-head" aria-expanded="${c.id === open}">
-                  <span class="cat-name">${esc(L(c, 'name'))}</span>
-                  <span class="acc-count">${itemCount(c.items.length)}</span>
+                <button type="button" class="acc-head" aria-expanded="${t.id===e}">
+                  <span class="cat-name">${s(c(t,"name"))}</span>
+                  <span class="acc-count">${W(t.items.length)}</span>
                   <span class="acc-chev" aria-hidden="true"></span>
                 </button>
               </h2>
-              <div class="acc-body"${c.id === open ? '' : ' hidden'}>
-                ${L(c, 'description') ? `<p class="cat-desc">${esc(L(c, 'description'))}</p>` : ''}
-                <div class="items">${c.items.map(itemHtml).join('')}</div>
+              <div class="acc-body"${t.id===e?"":" hidden"}>
+                ${c(t,"description")?`<p class="cat-desc">${s(c(t,"description"))}</p>`:""}
+                <div class="items">${t.items.map(J).join("")}</div>
               </div>
             </div>
-          </section>`).join('')}
-      </main>`;
-  }
-
-  // Tiles: a start screen of section tiles; a tile opens its section (#cat-… in the address,
-  // so the phone's back button returns to the tiles).
-  function tilesHomeHtml() {
-    return `
+          </section>`).join("")}
+      </main>`}function Pe(){return`
       <main class="menu tiles-home">
         <div class="wrap">
           <div class="tiles">
-            ${categories.map(c => {
-              const img = catImage(c);
-              return `
-                <a class="tile${img ? '' : ' no-img'}" href="#cat-${esc(c.id)}" data-cat="${esc(c.id)}">
-                  ${img ? `<img class="tile-img" src="${esc(img)}" alt="" loading="lazy">` : ''}
+            ${u.map(e=>{const t=we(e);return`
+                <a class="tile${t?"":" no-img"}" href="#cat-${s(e.id)}" data-cat="${s(e.id)}">
+                  ${t?`<img class="tile-img" src="${s(t)}" alt="" loading="lazy">`:""}
                   <span class="tile-text">
-                    <span class="tile-name">${esc(L(c, 'name'))}</span>
-                    <span class="tile-count">${itemCount(c.items.length)}</span>
+                    <span class="tile-name">${s(c(e,"name"))}</span>
+                    <span class="tile-count">${W(e.items.length)}</span>
                   </span>
-                </a>`;
-            }).join('')}
+                </a>`}).join("")}
           </div>
         </div>
-      </main>`;
-  }
-
-  function tileViewHtml(c) {
-    return `
+      </main>`}function je(e){return`
       <nav class="tile-bar">
         <div class="wrap">
-          <button type="button" class="tile-back"><span aria-hidden="true">←</span> ${t('back')}</button>
-          ${langSwitchHtml()}
+          <button type="button" class="tile-back"><span aria-hidden="true">\u2190</span> ${n("back")}</button>
+          ${Z()}
         </div>
       </nav>
-      <main class="menu">${sectionHtml(c, true)}</main>`;
-  }
-
-  const catFromHash = () => {
-    if (!location.hash.startsWith('#cat-')) return null;
-    const id = decodeURIComponent(location.hash.slice(5));
-    return categories.find(c => c.id === id) || null;
-  };
-
-  let observer = null;
-  let chips = [], sections = [];
-
-  // Builds the whole page in the current language. `active` is the open tab / accordion section.
-  function render(active) {
-    root.lang = lang;
-    document.title = settings.name ? `${settings.name} · ${t('title')}` : t('title');
-    const empty = `<main class="menu menu-empty"><div class="wrap"><p>${t('empty')}</p></div></main>`;
-    const sheet = `<dialog class="sheet" aria-label="${t('details')}"></dialog>`;
-    const tileCat = layout === 'tiles' && catFromHash();
-    root.dataset.view = tileCat ? 'section' : 'home';
-
-    if (tileCat) {
-      app.innerHTML = tileViewHtml(tileCat) + sheet;
-    } else {
-      let body = empty;
-      if (categories.length) {
-        if (layout === 'tiles') body = tilesHomeHtml();
-        else if (layout === 'accordion') body = accordionHtml(active);
-        else body = chipsLayoutHtml(active || categories[0].id);
-      }
-      app.innerHTML = heroHtml() + featuredHtml() + body + infoHtml() + sheet;
-    }
-
-    chips = [...app.querySelectorAll('.chip')];
-    sections = [...app.querySelectorAll('.cat')];
-
-    // Scroll layout: highlight the chip of the section currently in the middle of the screen.
-    if (observer) observer.disconnect();
-    if (layout === 'scroll' && 'IntersectionObserver' in window) {
-      observer = new IntersectionObserver(entries => {
-        entries.forEach(e => { if (e.isIntersecting) setActive(e.target.dataset.cat); });
-      }, { rootMargin: '-35% 0px -60% 0px' });
-      sections.forEach(s => observer.observe(s));
-    }
-  }
-
-  function setActive(id) {
-    chips.forEach(ch => {
-      const on = ch.dataset.cat === id;
-      ch.classList.toggle('active', on);
-      if (on) ch.parentElement.scrollTo({ left: ch.offsetLeft - 16, behavior: 'smooth' });
-    });
-  }
-
-  function openTab(id) {
-    sections.forEach(s => s.classList.toggle('active', s.dataset.cat === id));
-    setActive(id);
-    // Bring the start of the newly opened section into view.
-    const top = layout === 'bottom' ? app.querySelector('.menu').offsetTop : app.querySelector('.catnav').offsetTop;
-    if (window.scrollY > top) window.scrollTo({ top, behavior: 'smooth' });
-  }
-
-  function toggleSection(id) {
-    sections.forEach(sec => {
-      const open = sec.dataset.cat === id && !sec.classList.contains('open');
-      sec.classList.toggle('open', open);
-      sec.querySelector('.acc-body').hidden = !open;
-      sec.querySelector('.acc-head').setAttribute('aria-expanded', open);
-      if (open) sec.scrollIntoView({ block: 'start' });
-    });
-  }
-
-  // Tiles: the section lives in the address, so a tap on a tile and the phone's back button
-  // both just re-render.
-  let cameFromTiles = false;
-  window.addEventListener('hashchange', () => {
-    if (layout !== 'tiles') return;
-    render();
-    window.scrollTo(0, 0);
-  });
-  function backToTiles() {
-    if (cameFromTiles) return history.back();
-    history.replaceState(null, '', location.pathname + location.search);
-    render();
-    window.scrollTo(0, 0);
-  }
-
-  function switchLang(next) {
-    if (next === lang) return;
-    lang = next;
-    saveLang(LANG_KEY, lang);
-    if (new URLSearchParams(location.search).has('lang')) {
-      const url = new URL(location.href);
-      url.searchParams.delete('lang');
-      history.replaceState(null, '', url);
-    }
-    const y = window.scrollY;
-    const open = layout === 'accordion' ? app.querySelector('.cat.open') : app.querySelector('.chip.active');
-    render(open && open.dataset.cat);
-    window.scrollTo(0, y);
-  }
-
-  /* ---------- item details sheet ---------- */
-
-  function openItem(id) {
-    const sheet = app.querySelector('.sheet');
-    const item = itemById.get(id);
-    if (!item || typeof sheet.showModal !== 'function') return;
-    const price = formatPrice(item.price, settings);
-    const desc = L(item, 'description');
-    sheet.innerHTML = `
+      <main class="menu">${X(e,!0)}</main>`}const Ee=()=>{if(!location.hash.startsWith("#cat-"))return null;const e=decodeURIComponent(location.hash.slice(5));return u.find(t=>t.id===e)||null};let L=null,ee=[],S=[];function k(e){p.lang=m,document.title=i.name?`${i.name} \xB7 ${n("title")}`:n("title");const t=`<main class="menu menu-empty"><div class="wrap"><p>${n("empty")}</p></div></main>`,a=`<dialog class="sheet" aria-label="${n("details")}"></dialog>`,l=h==="tiles"&&Ee();if(p.dataset.view=l?"section":"home",l)d.innerHTML=je(l)+a;else{let r=t;u.length&&(h==="tiles"?r=Pe():h==="accordion"?r=ke(e):r=Se(e||u[0].id)),d.innerHTML=ye()+Le()+r+ve()+a}ee=[...d.querySelectorAll(".chip")],S=[...d.querySelectorAll(".cat")],L&&L.disconnect(),h==="scroll"&&"IntersectionObserver"in window&&(L=new IntersectionObserver(r=>{r.forEach(g=>{g.isIntersecting&&te(g.target.dataset.cat)})},{rootMargin:"-35% 0px -60% 0px"}),S.forEach(r=>L.observe(r)))}function te(e){ee.forEach(t=>{const a=t.dataset.cat===e;t.classList.toggle("active",a),a&&t.parentElement.scrollTo({left:t.offsetLeft-16,behavior:"smooth"})})}function ae(e){S.forEach(a=>a.classList.toggle("active",a.dataset.cat===e)),te(e);const t=h==="bottom"?d.querySelector(".menu").offsetTop:d.querySelector(".catnav").offsetTop;window.scrollY>t&&window.scrollTo({top:t,behavior:"smooth"})}function se(e){S.forEach(t=>{const a=t.dataset.cat===e&&!t.classList.contains("open");t.classList.toggle("open",a),t.querySelector(".acc-body").hidden=!a,t.querySelector(".acc-head").setAttribute("aria-expanded",a),a&&t.scrollIntoView({block:"start"})})}let ne=!1;window.addEventListener("hashchange",()=>{h==="tiles"&&(k(),window.scrollTo(0,0))});function Te(){if(ne)return history.back();history.replaceState(null,"",location.pathname+location.search),k(),window.scrollTo(0,0)}function Ue(e){if(e===m)return;if(m=e,fe(M,m),new URLSearchParams(location.search).has("lang")){const l=new URL(location.href);l.searchParams.delete("lang"),history.replaceState(null,"",l)}const t=window.scrollY,a=h==="accordion"?d.querySelector(".cat.open"):d.querySelector(".chip.active");k(a&&a.dataset.cat),window.scrollTo(0,t)}function oe(e){const t=d.querySelector(".sheet"),a=G.get(e);if(!a||typeof t.showModal!="function")return;const l=T(a.price,i),r=c(a,"description");t.innerHTML=`
       <div class="sheet-card">
-        <button class="sheet-close" type="button" aria-label="${t('close')}">×</button>
-        ${item.image ? `<img class="sheet-img" src="${esc(item.image)}" alt="">` : ''}
+        <button class="sheet-close" type="button" aria-label="${n("close")}">\xD7</button>
+        ${a.image?`<img class="sheet-img" src="${s(a.image)}" alt="">`:""}
         <div class="sheet-body">
-          <h3 class="sheet-name">${esc(L(item, 'name'))}</h3>
+          <h3 class="sheet-name">${s(c(a,"name"))}</h3>
           <div class="sheet-sub">
-            ${price ? `<span class="item-price">${esc(price)}</span>` : ''}
-            ${item.size ? `<span class="item-size">${esc(sizeText(item.size))}</span>` : ''}
-            ${item.available === false ? `<span class="soldout-badge">${t('soldOut')}</span>` : ''}
+            ${l?`<span class="item-price">${s(l)}</span>`:""}
+            ${a.size?`<span class="item-size">${s(Q(a.size))}</span>`:""}
+            ${a.available===!1?`<span class="soldout-badge">${n("soldOut")}</span>`:""}
           </div>
-          ${desc ? `<p class="sheet-desc">${esc(desc)}</p>` : ''}
-          ${tagsHtml(item.tags)}
+          ${r?`<p class="sheet-desc">${s(r)}</p>`:""}
+          ${K(a.tags)}
         </div>
-      </div>`;
-    sheet.showModal();
-  }
-
-  // One set of listeners for everything, since render() replaces the page's markup.
-  app.addEventListener('click', e => {
-    const sheet = e.target.closest('.sheet');
-    if (sheet) {
-      if (e.target === sheet || e.target.closest('.sheet-close')) sheet.close();
-      return;
-    }
-    const langBtn = e.target.closest('.lang-switch');
-    if (langBtn) return switchLang(langBtn.dataset.lang);
-    const chip = e.target.closest('.chip');
-    if (chip && tabs) return openTab(chip.dataset.cat);
-    const accHead = e.target.closest('.acc-head');
-    if (accHead) return toggleSection(accHead.closest('.cat').dataset.cat);
-    if (e.target.closest('.tile')) cameFromTiles = true;   // the link itself changes the address
-    if (e.target.closest('.tile-back')) return backToTiles();
-    const item = e.target.closest('.item, .feat');
-    if (item) openItem(item.dataset.id);
-  });
-  app.addEventListener('keydown', e => {
-    const item = e.target.closest('.item');
-    if (item && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openItem(item.dataset.id); }
-  });
-
-  render();
-  document.body.classList.remove('dm-loading');
-
-  // The page is built after load, so jump to a #section link by hand (tiles read it themselves).
-  const target = layout !== 'tiles' && location.hash && app.querySelector(`[id="${CSS.escape(location.hash.slice(1))}"]`);
-  if (target) {
-    if (tabs) openTab(target.dataset.cat);
-    else if (layout === 'accordion') toggleSection(target.dataset.cat);
-    else target.scrollIntoView();
-  }
-})();
+      </div>`,t.showModal()}d.addEventListener("click",e=>{const t=e.target.closest(".sheet");if(t){(e.target===t||e.target.closest(".sheet-close"))&&t.close();return}const a=e.target.closest(".lang-switch");if(a)return Ue(a.dataset.lang);const l=e.target.closest(".chip");if(l&&I)return ae(l.dataset.cat);const r=e.target.closest(".acc-head");if(r)return se(r.closest(".cat").dataset.cat);if(e.target.closest(".tile")&&(ne=!0),e.target.closest(".tile-back"))return Te();const g=e.target.closest(".item, .feat");g&&oe(g.dataset.id)}),d.addEventListener("keydown",e=>{const t=e.target.closest(".item");t&&(e.key==="Enter"||e.key===" ")&&(e.preventDefault(),oe(t.dataset.id))}),k(),document.body.classList.remove("dm-loading");const P=h!=="tiles"&&location.hash&&d.querySelector(`[id="${CSS.escape(location.hash.slice(1))}"]`);P&&(I?ae(P.dataset.cat):h==="accordion"?se(P.dataset.cat):P.scrollIntoView())})();
